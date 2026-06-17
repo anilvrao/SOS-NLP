@@ -1,0 +1,263 @@
+
+      SUBROUTINE BCNVRG(GRADNM,EPSG,CLAMNM,ERREQL,EPSC,ERPTHB,EPSB,
+     $    PENMU,CNDNUM,ETARAT,DELYVC,YVEC,DELETA,ETAVEC,DELLAM,VLAMDA,
+     $    ALFA,DELFNM,FNOM,FMIN,OBJTOL,NVAR,MSUBE,MSUBB,MAXCON,
+     $    MAXBND,IT,NITMAX,NITMIN,IFUNER,IOFLAG,IPU,FZMODE,RELAX,ITERM)
+C
+C
+C ======================================================================
+C     BCNVRG===>BCNVRG   J.T. BETTS
+C ======================================================================
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C         PURPOSE:  PERFORM CONVERGENCE TESTS 
+C
+C         INPUT:
+C
+C           GRADNM  NORM OF GRADIENT OF LAGRANGIAN
+C           EPSG    GRADIENT TOLERANCE
+C           CLAMNM  NORM OF (C^T) LAMBDA
+C           ERREQL  ERROR IN EQUALITY CONSTRAINTS
+C           EPSC    EQUALITY CONSTRAINT TOLERANCE
+C           ERPTHB  ERROR IN CENTRAL PATH BOUND CONSTRAINTS
+C           EPSB    BOUND CONSTRAINT TOLERANCE
+C           PENMU   BARRIER PARAMETER
+C           CNDNUM  KT CONDITION NUMBER
+C           ETARAT  RATE OF CHANGE OF ETANRM BETWEEN BARRIER UPDATES
+C           DELYVC  SEARCH DIRECTION (NVAR)
+C           YVEC    VARIABLES (NVAR)
+C           DELETA  ETAVEC SEARCH DIRECTION (MAXCON)
+C           ETAVEC  CONSTRAINT MULTIPLIERS AT YVEC (MAXCON)
+C           DELLAM  VLAMDA SEARCH DIRECTION (MAXBND)
+C           VLAMDA  BOUND MULTIPLIERS AT YVEC (MAXBND)
+C           ALFA    STEP LENGTH
+C           DELFNM  OBJECTIVE FUNCTION GRADIENT NORM
+C           FNOM    CURRENT OBJECTIVE FUNCTION VALUE
+C           FMIN    PREDICTED MINIMUM OBJECTIVE FUNCTION
+C           OBJTOL  OBJECTIVE TOLERANCE
+C           NVAR    NUMBER OF VARIABLES
+C           MSUBE   NUMBER OF EQUALITY CONSTRAINTS
+C           MSUBB   NUMBER OF BOUNDS
+C           MAXCON  MAXIMUM NUMBER OF CONSTRAINTS MAX(MSUBE,1)
+C           MAXBND  MAXIMUM NUMBER OF BOUNDS MAX(MSUBB,1)
+C           IT      ITERATION NUMBER
+C           NITMAX  MAXIMUM NUMBER OF ITERATIONS
+C           NITMIN  MINIMUM NUMBER OF ITERATIONS
+C           IFUNER  INTEGER FUNCTION ERROR FLAG
+C           IOFLAG  OUTPUT CONTROL FLAG
+C           IPU     OUTPUT UNIT NO.
+C           FZMODE  FEASIBILITY MODE FLAG
+C           RELAX   RELAXATION MODE FLAG
+C           ITERM   TERMINATION FLAG.  MUST BE INPUT.  SEE BELOW
+C
+C         OUTPUT:
+C
+C            ITERM  TERMINATION FLAG
+C                   =0        NO TERMINATION.
+C                   =1        NORMAL TERMINATION.  
+C                   =2        NORMAL TERMINATION ON CENTRAL PATH
+C                             ABNORMAL TERMINATION
+C                   =3        SMALL CHANGES
+C                   =4        MAX. NUMBER OF ITERATIONS
+C                   =5        FUNCTION ERROR ON GRAD. EVAL.
+C                   =8        INFEASIBLE CONSTRAINTS
+C                   =9        RANK DEFICIENT CONSTRAINTS
+C                   .LT.0     USER ABORT
+C
+      DIMENSION DELYVC(NVAR),YVEC(NVAR),DELETA(MAXCON),ETAVEC(MAXCON),
+     $          VLAMDA(MAXBND),DELLAM(MAXBND)
+C
+      LOGICAL FZMODE,RELAX
+C
+      COMMON /KONSTN/ 
+     *  ZEROMN  ,ZEROOT  ,BIGNUM  ,BGROOT  ,BIGBND  ,BIGCND
+C
+      PARAMETER (ZERO=0.0D0,ONE=1.0D0,ONEEP2=1.0D2)
+C
+C         COMPUTE RESOLUTION TEST QUANTITIES
+C
+      SMLSTP = ONEEP2*ZEROMN
+      RESTST = ZERO
+      SNORM = ZERO
+C
+      IF(IT.GT.1) THEN
+C
+        DO I = 1,NVAR
+          DELX = ALFA*ABS(DELYVC(I))
+          RESTST = MAX(RESTST,DELX/(ONE + ABS(YVEC(I))))
+          SNORM = SNORM + DELYVC(I)**2
+        enddo
+C
+        DO I = 1,MSUBE
+          DELX = ALFA*ABS(DELETA(I))
+          RESTST = MAX(RESTST,DELX/(ONE + ABS(ETAVEC(I))))
+        enddo
+C
+        DO I = 1,MSUBB
+          DELX = ALFA*ABS(DELLAM(I))
+          RESTST = MAX(RESTST,DELX/(ONE + ABS(VLAMDA(I))))
+        enddo
+C
+        SNORM = SQRT(SNORM)
+C 
+      ENDIF
+C
+      RHSTST = EPSG*MAX(ONE,DELFNM,CLAMNM)
+      TAU = OBJTOL/(ONE + ABS(FNOM))
+      TOLTST = SQRT(TAU)
+C
+C ----------------------------------------------------------------------
+C
+C         NORMAL TERMINATION TESTS
+C
+C ----------------------------------------------------------------------
+C
+      IF(FZMODE) THEN
+C
+C ----------------------------------------------------------------------
+C --------------(FEASIBILITY MODE)--------------------------------------
+C ----------------------------------------------------------------------
+C
+C               NORMAL TERMINATION 
+C
+        IF(IFUNER.EQ.-101.AND.IT.GT.NITMIN) THEN
+C
+          ITERM = 1
+C
+        ELSEIF(ERPTHB.LT.EPSB.AND.ITERM.EQ.0.AND.IT.GT.NITMIN) THEN
+C
+C         CENTRAL PATH CONSTRAINTS ARE WITHIN TOLERANCE
+C
+          IF(GRADNM.LT.EPSG) THEN
+C
+C         GRADIENT IS WITHIN TOLERANCE 
+C
+            IF( (ABS(FNOM-FMIN).LT.OBJTOL) .OR. 
+     $     (RESTST.LT.TOLTST.AND.IT.GT.1) .OR.
+     $     (GRADNM.LT.ZEROOT)) THEN
+C
+C         (A) OBJECTIVE FUNCTION IS WITHIN TOLERANCE OR
+C         (B) STEP IS WITHIN TOLERANCE OR
+C         (C) PROJECTED GRADIENT ERROR IS SO
+C             SMALL THAT A RESOLUTION TEST IS UNWARRANTED
+C
+              IF(PENMU.LT.EPSC.OR.MSUBB.EQ.0) THEN
+C
+C               NORMAL TERMINATION
+C
+                ITERM = 2
+C
+              ENDIF
+C 
+            ENDIF
+C
+          ENDIF
+C      
+        ENDIF
+C
+      ELSE
+C
+C ----------------------------------------------------------------------
+C --------------(PRIMARY MODE)------------------------------------------
+C ----------------------------------------------------------------------
+C
+        IF(ERREQL.LT.EPSC.AND.ERPTHB.LT.EPSB.AND.ITERM.EQ.0
+     $    .AND.IT.GT.NITMIN) THEN
+C
+C         CENTRAL PATH CONSTRAINTS ARE WITHIN TOLERANCE
+C
+          IF(GRADNM.LT.RHSTST) THEN
+C
+C         PROJECTED GRADIENT IS WITHIN TOLERANCE 
+C
+            IF( (ABS(FNOM-FMIN).LT.OBJTOL) .OR. (RESTST.LT.TOLTST) .OR.
+     $     (GRADNM.LT.ZEROOT)) THEN
+C
+C         EITHER 
+C         (A) OBJECTIVE FUNCTION IS WITHIN TOLERANCE OR
+C         (B) STEP IS WITHIN TOLERANCE OR
+C         (C) PROJECTED GRADIENT ERROR IS SO
+C             SMALL THAT A RESOLUTION TEST IS UNWARRANTED
+C
+              IF(PENMU.LT.EPSC.OR.MSUBB.EQ.0) THEN
+C
+C               NORMAL TERMINATION
+C
+                ITERM = 1
+C
+              ELSE
+C
+C               NORMAL TERMINATION ON CENTRAL PATH
+C
+                ITERM = 2
+C
+              ENDIF
+C 
+            ENDIF
+C
+          ENDIF
+C      
+        ENDIF
+C
+      ENDIF
+C
+      IF(ITERM.EQ.0) THEN
+C
+C ----------------------------------------------------------------------
+C
+C         ABNORMAL TERMINATION TESTS
+C
+C ----------------------------------------------------------------------
+C
+C
+        IF(IT.GT.NITMAX) THEN
+C
+C         MAXIMUM NUMBER OF ITERATIONS
+C
+          ITERM = 4
+          IF(IOFLAG.GE.10) WRITE(IPU,1002)
+C
+        ELSEIF(IFUNER.EQ.1) THEN
+C
+C         FUNCTION ERROR OCCURRED ON A PERTURBED POINT DURING
+C         NUMERICAL GRADIENT EVALUATION. SINCE NOMINAL POINT
+C         WAS OK, FUNCTION IS NOT LOCALLY DIFFERENTIABLE.
+C
+          ITERM = 5
+          IF(IOFLAG.GE.10) WRITE(IPU,1003)
+C
+        ELSEIF(IT.GT.2.AND.(RESTST.LT.SMLSTP) ) THEN
+C
+C         SMALL STEP TERMINATION
+C
+          ITERM = 3
+          IF(IOFLAG.GE.10) WRITE(IPU,1001)
+C
+        ELSEIF(SNORM*ZEROMN.GT.ONE.AND.IT.GT.1
+     $          .AND.ERREQL.GT.EPSC) THEN
+C
+C               INFEASIBLE CONSTRAINTS
+C
+          ITERM = 8
+C
+        ELSEIF(PENMU.LT.ZEROOT.AND.ETARAT.GT.ONE.AND
+     $         .CNDNUM.GT.BIGCND) THEN
+C
+C               RANK DEFICIENT CONSTRAINTS
+C
+          ITERM = 9
+C
+        ENDIF
+C
+      ENDIF
+C
+ 1001 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'SMALL STEP TERMINATION',
+     $    T106,'*')
+ 1002 FORMAT(T3,'*',T106,'*',/T3,'*',T11,'MAXIMUM NUMBER OF ITERATIONS',
+     $    T106,'*')
+ 1003 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'FUNCTION ERROR ON GRADIENT EVAL
+     $UATION',T106,'*')
+C
+      RETURN
+      END

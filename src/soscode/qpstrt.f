@@ -1,0 +1,403 @@
+
+
+      SUBROUTINE QPSTRT(MCON,MEQUAL,NDIM,GMAT,IROWG,JSTRG,
+     $    NONZG,GVEC,CLWR,CUPR,CVEC,ISTATC,ISTATV,XVEC,XLWR,XUPR,
+     $    WORK,NWORK,IWORK,NIWORK,NEEDED,IPU,IPC,ISTART,VECP,
+     $    VECMU,VECNU,CNDNUM,IERQPS)
+C
+C ======================================================================
+C     QPSTRT===>qpstrt   J.T. BETTS
+C ======================================================================
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C
+C         PURPOSE:  SOLVE THE QUADRATIC PROGRAM; 
+C
+C                   MINIMIZE
+C                   
+C                   F = .5*(P**T)P + (G**T)P
+C
+C                   SUBJECT TO THE NONLINEAR CONSTRAINTS
+C
+C                   BL - C < GP < BU - C
+C
+C                   AND SIMPLE BOUND CONSTRAINTS
+C
+C                   XL - X < P < XU - X
+C
+C                   THE NONLINEAR EQUALITY CONSTRAINTS ARE IN ROWS
+C                   1 ... MEQUAL, FOLLOWED BY THE NONLINEAR INEQUALITIES
+C                   IN ROWS (MEQUAL+1) ... MCON.
+C
+C                   THIS ROUTINE IS INTENDED TO PROVIDE:
+C                   A) FIRST ORDER ESTIMATES OF THE LAGRANGE MULTIPLIERS
+C                   B) AND, AN ESTIMATE OF THE ACTIVE SET.
+C                   THE MULTIPLIERS CAN THEN BE USED TO COMPUTE 
+C                   A FINITE DIFFERENCE HESSIAN MATRIX TO BEGIN 
+C                   A SPARSE SQP NONLINEAR PROGRAMMING ITERATION.
+C
+C         INPUT:    
+C
+C            MCON   NUMBER OF CONSTRAINTS
+C            MEQUAL NUMBER OF EQUALITY CONSTRAINTS
+C            NDIM   NUMBER OF VARIABLES 
+C            GMAT   NONZERO ELEMENTS OF LINEAR SYSTEM (NONZG)
+C            IROWG  INTEGER ROW INDEX VECTOR (NONZG)
+C            JSTRG  INTEGER COLUMN START VECTOR (NDIM+1)
+C            NONZG  NUMBER OF JACOBIAN NONZEROS = JSTRG(NDIM+1)-1
+C            GVEC   GRADIENT VECTOR (NDIM)
+C            CLWR   CONSTRAINT LOWER BOUND (MCON)
+C            CUPR   CONSTRAINT UPPER BOUND (MCON)
+C            CVEC   CONSTRAINT VECTOR (MCON)
+C            ISTATC CONSTRAINT STATUS ARRAY (MCON)
+C            ISTATV VARIABLE STATUS ARRAY (NDIM)
+C            XVEC   INDEPENDENT VARIABLES (NDIM)
+C            XLWR   VARIABLE LOWER BOUND (NDIM)
+C            XUPR   VARIABLE UPPER BOUND (NDIM)
+C            WORK   WORK ARRAY (NWORK)
+C            NWORK  LENGTH OF WORK ARRAY 
+C            IWORK  INTEGER WORK ARRAY (NIWORK)
+C            NIWORK LENGTH OF IWORK
+C            IPU    OUTPUT UNIT NO.
+C            IPC    OUTPUT CONTROL FLAG
+C            ISTART QP START OPTION
+C
+C
+C         OUTPUT:
+C
+C            NEEDED STORAGE REQUIRED WHEN NWORK OR NIWORK ARE TOO SMALL
+C            VECP   REAL VARIABLE SEARCH DIRECTION (NDIM)
+C            VECMU  QP CONSTRAINT LAGRANGE MULTIPLIER (MCON)
+C            VECNU  QP BOUND LAGRANGE MULTIPLIERS (NDIM)
+C            ISTATC CONSTRAINT STATUS ARRAY (MCON)
+C            ISTATV VARIABLE STATUS ARRAY (NDIM)
+C            CNDNUM CONDITION NUMBER OF K-T MATRIX
+C            IERQPS TERMINATION FLAG
+C                   =  0 NORMAL TERM.
+C                   = -1 ILL-CONDITIONED OR SINGULAR JACOBIAN
+C                   = -2 STORAGE ERROR
+C                   = -3 INTEGER STORAGE ERROR
+C                   = -4 I/O ERROR (INSUFFICIENT DISK SPACE)
+C                   = -5 OTHER ERRORS
+C
+      DIMENSION GMAT(NONZG),IROWG(NONZG),JSTRG(NDIM+1),
+     $    GVEC(NDIM),CVEC(*),
+     $    WORK(NWORK),IWORK(NIWORK),VECP(NDIM),
+     $    VECMU(*),VECNU(NDIM),
+     $    CLWR(*),CUPR(*),XVEC(NDIM),XLWR(NDIM),XUPR(NDIM),
+     $    ISTATC(*),ISTATV(NDIM)
+C
+      COMMON /STATIS/ INSTAT(30),RLSTAT(20)
+      COMMON /PERCOM/ ISQPER(20)
+C
+      INCLUDE '../commons/NLPSPR.CMN'
+C
+      COMMON /ITEREF/ MAXREF,MAXRFN,IREFIN
+      COMMON /INERVL/ INREQD
+      COMMON /KONSTN/ 
+     *  ZEROMN  ,ZEROOT  ,BIGNUM  ,BGROOT  ,BIGBND  ,BIGCND
+C
+      LOGICAL BADQP,LINTRM
+      PARAMETER (ZERO=0.0D0,ONE=1.0D0)
+      EXTERNAL IDENHS
+C
+C         INITIALIZE OUTPUT CONTROL FOR QP ALGORITHM
+C
+      IF(IOFSHR.EQ.0) THEN
+        IPCSHR = 0
+        IF(IPC.GE.30) IPCSHR = IPC
+      ELSE
+        IPCSHR = IOFSHR
+      ENDIF
+C
+C         LOCATION OF INEQUALITY CONSTRAINTS
+C
+      MINEQL = MCON - MEQUAL
+      LCINEQ = MEQUAL + 1
+C 
+C         COMPUTE REAL WORK ARRAY POINTERS
+C
+      LCGZER = 1
+      LCCUPR = LCGZER + NDIM
+      LCCLWR = LCCUPR + MCON
+      LCXUPR = LCCLWR + MCON
+      LCXLWR = LCXUPR + NDIM
+      LCHMAT = LCXLWR + NDIM
+      LCWORK = LCHMAT + NDIM
+C
+      LNWORK = NWORK - LCWORK + 1
+C
+C         ESTIMATE WORKING STORAGE 
+C
+      IF(QPOPTN.NE.'SPARSE') THEN
+        CALL NLSPST(NDIM,MCON,NEEDIW,NEEDRW)
+      ELSE
+        NEEDRW = 0
+        NEEDIW = 0
+      ENDIF
+C
+C         CHECK SIZE OF REAL WORK ARRAY
+C
+      IF(LNWORK.LT.NEEDRW) THEN
+        NEEDED = NEEDRW + LCWORK - 1
+        IERQPS = -2
+        GO TO 10000
+      ENDIF
+C 
+C         COMPUTE INTEGER WORK ARRAY POINTERS
+C
+      LCIRWH = 1
+      LCJSTH = LCIRWH + NDIM
+      LCIWRK = LCJSTH + (NDIM+1) 
+      LNIWRK = NIWORK - LCIWRK + 1
+C
+C         CHECK SIZE OF INTEGER WORK ARRAY
+C
+      IF(LNIWRK.LT.NEEDIW) THEN
+        NEEDED = NEEDIW + LCIWRK - 1
+        IERQPS = -3
+        GO TO 10000
+      ENDIF
+C
+C ----------------------------------------------------------------------
+C
+C
+C         DEFINE DIAGONAL HESSIAN MATRIX (LDP)
+C
+      DO I = 1,NDIM
+        IWORK(LCIRWH+I-1) = I
+        IWORK(LCJSTH+I-1) = I
+        WORK(LCHMAT+I-1) = ONE
+      ENDDO
+      IWORK(LCJSTH+NDIM) = NDIM + 1
+C
+C         INITIALIZE VECP
+C
+      VECP(1:NDIM) = ZERO
+C
+C         DEFINE LINEAR TERM FOR OBJECTIVE FUNCTION
+C
+      LINTRM = .TRUE.
+C
+C         DEFINE CONSTRAINT UPPER AND LOWER BOUNDS
+C
+C         -- EQUALITY CONSTRAINTS
+C
+      DO I = 1,MEQUAL
+C
+        WORK(LCCLWR+I-1) = CLWR(I) - CVEC(I)
+        WORK(LCCUPR+I-1) = CUPR(I) - CVEC(I)
+C
+      ENDDO
+C
+C         -- INEQUALITY CONSTRAINTS
+C
+      DO I = LCINEQ,MCON
+C
+        IF(CLWR(I).GT.-BIGBND) THEN
+          WORK(LCCLWR+I-1) = CLWR(I) - CVEC(I)
+        ELSE
+          WORK(LCCLWR+I-1) = -BIGBND
+        ENDIF
+C
+        IF(CUPR(I).LT.BIGBND) THEN
+          WORK(LCCUPR+I-1) = CUPR(I) - CVEC(I)
+        ELSE
+          WORK(LCCUPR+I-1) = BIGBND
+        ENDIF
+C
+      ENDDO
+C
+      DO I = 1,NDIM
+C
+        IF(XLWR(I).GT.-BIGBND) THEN
+          WORK(LCXLWR+I-1) = XLWR(I) - XVEC(I)
+        ELSE
+          WORK(LCXLWR+I-1) = -BIGBND
+        ENDIF
+C
+        IF(XUPR(I).LT.BIGBND) THEN
+          WORK(LCXUPR+I-1) = XUPR(I) - XVEC(I)
+        ELSE
+          WORK(LCXUPR+I-1) = BIGBND
+        ENDIF
+C
+      ENDDO
+C
+      IF(IPUSTF.GT.0) THEN
+C
+C         WRITE DATA FOR QUADRATIC PROGRAMMING TEST PROBLEM
+C
+          IF(QPOPTN.EQ.'SPARSE') THEN
+            CALL FILSHR(NDIM,MCON,WORK(LCHMAT),IWORK(LCIRWH),
+     $        IWORK(LCJSTH),NDIM,GVEC,
+     $        WORK(LCGZER),GMAT,IROWG,JSTRG,NONZG,WORK(LCCUPR),
+     $        WORK(LCCLWR),VECP,WORK(LCXUPR),
+     $        WORK(LCXLWR),WORK(LCWORK),LNWORK,BIGBND,IPU,IPCSHR,
+     $        ISTART,IPUSTF,.TRUE.,'QPSTRTQP.FIL')
+          ELSE
+            CALL FILDNS(NDIM,MCON,NDIM,WORK(LCHMAT),GVEC,
+     $        MCON,GMAT,WORK(LCCUPR),WORK(LCCLWR),
+     $        WORK(LCXUPR),WORK(LCXLWR),BIGBND,IPU,IPCSHR,
+     $        LINTRM,ISTART,VECP,
+     $        IPUSTF,.TRUE.,'QPSTRTQP.FIL')
+          ENDIF
+C
+        STOP
+C
+      ENDIF
+C     
+C         SOLVE WITHOUT ITERATIVE REFINEMENT
+C
+      IREFIN = 0
+C
+C         SET INERTIA SHIFT 
+C
+      INREQD = 0
+C
+      ISQPER(1:20) = 0
+      INSTAT(12) = INSTAT(12) + 1
+      IF( QPOPTN.NE.'SPARSE') THEN
+C
+C         CALL THE DENSE QP
+C
+        IPCDNS = IPCSHR
+        LDG = MAX(1,JSTRG(1))
+C
+        CALL NLSPQP ( NDIM         , MCON         , NDIM         ,
+     1                WORK(LCHMAT) , IDENHS       , GVEC         ,
+     2                LDG          , GMAT         , WORK(LCCUPR) ,
+     3                WORK(LCCLWR) , WORK(LCXUPR) ,
+     4                WORK(LCXLWR) , BIGBND       , IPU          ,
+     5                IPCDNS       , LINTRM       , ISTART       ,
+     6                LNIWRK       , LNWORK       , VECP         ,
+     7                IWORK(LCIWRK), WORK(LCWORK) , VECMU        ,
+     8                VECNU        , ISTATC       , ISTATV       ,
+     9                QUAD         , NITRFP       , NITRQP       ,
+     A                NOUTER       , NLVMOD       , CRITMU       , 
+     B                MNP1WK       , MXP1WK       , AVP1WK       ,
+     C                MNP2WK       , MXP2WK       , AVP2WK       ,
+     D                ZHLMIN       , ZHLMAX       , SMINAA       ,
+     E                SMAXAA       , IERDQP  )
+C
+C         SET IERQP FROM THE IERDQP OUTPUT
+C
+        NCHLFC = NOUTER + NLVMOD
+        ISQPER(2) = NITRFP + NITRQP
+        IF(ZHLMIN.GT.ZERO) THEN
+          CNDNUM = ZHLMAX/ZHLMIN
+        ELSE
+          CNDNUM = -ONE
+        ENDIF
+        IERQP = IERDQP
+C
+        BADQP = IMIN(MCON,ISTATC,1).LT.0
+        IF(IERDQP.EQ.0.AND.BADQP.OR.IERDQP.EQ.3) THEN
+          IERQP = 3
+C
+C         RESTORE ISTATC 
+C
+          DO I = 1,MCON
+            IF(CLWR(I).EQ.CUPR(I)) THEN
+              ISTATC(I) = 3
+            ELSEIF(ISTATC(I).EQ.-2) THEN
+              ISTATC(I) = 2
+            ELSEIF(ISTATC(I).EQ.-1) THEN
+              ISTATC(I) = 1
+            ENDIF
+          ENDDO
+C
+        ELSEIF(IERDQP.EQ.2.OR.IERDQP.EQ.-1022) THEN
+          IERQP = -1104
+        ELSEIF(IERDQP.EQ.5) THEN
+          IERQP = -1014
+        ENDIF
+C
+      ELSE
+C
+        CALL SHURQP(NDIM,MCON,WORK(LCHMAT),IWORK(LCIRWH),
+     $    IWORK(LCJSTH),NDIM,GVEC,WORK(LCGZER),QUAD,GMAT,IROWG,
+     $    JSTRG,NONZG,WORK(LCCUPR),WORK(LCCLWR),VECMU,ISTATC,VECP,
+     $    WORK(LCXUPR),WORK(LCXLWR),VECNU,ISTATV,WORK(LCWORK),LNWORK,
+     $    IWORK(LCIWRK),LNIWRK,NEEDED,BIGBND,IPU,IPCSHR,ISTART,
+     $    CNDNUM,IERQP)
+C
+      ENDIF
+C
+C         QP STATISTICS
+C
+      NQPITR = ISQPER(2) + 1
+      INSTAT(26) = INSTAT(26) + NQPITR
+      INSTAT(27) = MAX(INSTAT(27),NQPITR)
+      IF(ISQPER(4).GT.INSTAT(14)) THEN
+        INSTAT(14) = ISQPER(4)
+        INSTAT(15) = 0
+      ENDIF
+      IF(ISQPER(2).GT.INSTAT(16)) THEN
+        INSTAT(16) = ISQPER(2)
+        INSTAT(17) = 0
+      ENDIF
+      IF(ISQPER(5).GT.INSTAT(18)) THEN
+        INSTAT(18) = ISQPER(5)
+        INSTAT(19) = 0
+      ENDIF
+      IF(ISQPER(10).GT.INSTAT(20)) THEN
+        INSTAT(20) = ISQPER(10)
+        INSTAT(21) = 0
+      ENDIF
+      IF(QPOPTN.NE.'SPARSE') THEN
+        INSTAT(29) = INSTAT(29) + NITRFP
+      ENDIF
+C
+      IF(IERQP.NE.0.AND.IERQP.NE.1) INSTAT(11) = INSTAT(11) + 1
+C
+      IF(IERQP.EQ.0.OR.IERQP.EQ.1.OR.IERQP.EQ.2) THEN
+C
+C         QP WAS SUCCESSFUL --- SET IERQPS AND WARM START FOR SUBSEQUENT QP'S
+C
+        IERQPS = 0
+        ISTART = 0
+C
+      ELSEIF(IERQP.EQ.-1103.OR.IERQP.EQ.-1104.OR.IERQP.EQ.-1106
+     $    .OR.IERQP.EQ.-1108) THEN
+C
+C         K-T SYSTEM IS SINGULAR (IERQP=-1103) OR PROJECTED HESSIAN
+C         IS NOT POSITIVE DEFINITE BECAUSE EITHER IERQP=-1104 WHICH
+C         INDICATES THE K-T SYSTEM HAS THE WRONG INERTIA.  IERQP=-1106,
+C         WHICH INDICATES AN ILL-CONDITIONED KT MATRIX IS TREATED THE
+C         SAME.  IERQP=-1108 INDICATES EXCESSIVE FILL DURING NUMERIC
+C         FACTORIZATION AND IS ALSO AN INDICATION OF ILL-CONDITIONING
+C
+        IERQPS = -1
+C
+      ELSEIF(IERQP.EQ.-1014) THEN
+C
+C         CHECK FOR ADEQUATE WORKING STORAGE 
+C
+        NEEDED = LCWORK + NEEDED - 1
+        IERQPS = -2
+C
+      ELSEIF(IERQP.EQ.-1019) THEN
+C
+C         CHECK FOR ADEQUATE INTEGER WORKING STORAGE 
+C
+        NEEDED = LCIWRK + NEEDED - 1
+        IERQPS = -3
+C
+      ELSEIF(IERQP.EQ.-1111) THEN
+C
+C         I/O ERROR (INSUFFICIENT DISK SPACE)
+C
+        IERQPS = -4
+C
+      ELSE
+        IERQPS = -5
+      ENDIF
+C
+C ----------------------------------------------------------------------
+C
+10000 CONTINUE
+      RETURN
+
+      END

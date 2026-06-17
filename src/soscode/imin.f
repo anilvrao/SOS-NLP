@@ -1,0 +1,33 @@
+      INTEGER FUNCTION IMIN(N,IX,INCX)
+C
+C     FINDS THE ELEMENT HAVING MINIMUM VALUE.
+C
+      INTEGER IX(*)
+      INTEGER I,IIX,INCX,INCXA,JHMCON,N
+C
+      IMIN = JHMCON(3)
+      IF( N .LT. 1 ) RETURN
+      IMIN = IX(1)
+      IF(N.EQ.1)RETURN
+      IF(INCX.EQ.1)GO TO 20
+C
+C        CODE FOR INCREMENT NOT EQUAL TO 1
+C
+      IIX = 1
+      INCXA = ABS ( INCX )
+      IIX = IIX + INCXA
+      DO 10 I = 2,N
+         IF(IX(IIX).GE.IMIN) GO TO 5
+            IMIN = IX(IIX)
+    5    IIX = IIX + INCXA
+   10 CONTINUE
+      RETURN
+C
+C        CODE FOR INCREMENT EQUAL TO 1
+C
+   20 DO 30 I = 2,N
+         IF(IX(I).GE.IMIN) GO TO 30
+            IMIN = IX(I)
+   30 CONTINUE
+      RETURN
+      END

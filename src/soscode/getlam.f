@@ -1,0 +1,124 @@
+      SUBROUTINE GETLAM( NX, MEQUAL, MINEQL, NROW, NDIM,
+     .                   IVSTAT, PI, GRAD, ATPI, SFEZ,
+     .                   XI, GOTRHO, RHO, CHI, ALMBDA        )
+C
+C ======================================================================
+C     GETLAM===>getlam   J.T. BETTS
+C ======================================================================
+C
+C     ROUTINE TO COMPUTE THE LAGRANGE MULTIPLIERS, ALMBDA, FOR
+C     THE FIXED VARIABLES.
+C     GETLAM ASSUMES THE VARIABLES ARE ORDERED AS:
+C       MINEQL SLACKS, FOLLOWED BY 1 ARTIFICIAL VAR,
+C       FOLLOWED BY NDIM ORIGINAL PROBLEM VARS.
+C
+C       THUS, WE HAVE THE PARTITIONED PRODUCT FOR THE
+C       EXTENDED CONSTRAINTS:
+C
+C        _T       MINEQL ROWS  |    0        I    | | (PI)E |
+C        A PI =         1 ROW  | (SFEZ)E  (SFEZ)I |*| (PI)I | ,
+C                    NDIM ROWS |  (AE)TR   (AI)TR | 
+C
+C        WHERE (PI)E HAS MEQUAL ENTRIES AND (PI)I HAS MINEQL ENTRIES.
+C
+C               _T        |    (PI)I    | MINEQL ENTRIES
+C        THUS,  A PI   =  | (SFEZ)TR*PI | 1 ENTRY
+C                         |  (A)TR*PI   | NDIM ENTRIES
+C
+C     THE LAGRANGE MULTIPLIERS ALMBDA, FOR THE FIXED, VARIABLES ARE
+C                                     _ T
+C     GIVEN BY ALMBDA = (G(X+P))FX - (A) FX *PI
+C
+C
+      DOUBLE PRECISION ZERO, ONE
+      PARAMETER ( ZERO = 0.0D0, ONE = 1.0D0 )
+C
+      LOGICAL GOTRHO
+C
+      INTEGER NX, I, IOFFST, MEQUAL, MINEQL
+      INTEGER NROW, NDIM, ISTAT
+      INTEGER IVSTAT(MEQUAL+NX)
+C
+      DOUBLE PRECISION ALMBDA(NX), PI(*), GRAD(NDIM)
+      DOUBLE PRECISION ATPI(NDIM), ALMMAX, HDMCON 
+      DOUBLE PRECISION RHO, CHI, SFEZ(*), XI
+C
+C     ALMBDA <-- 0
+C
+      ALMBDA(1:NX) = ZERO
+C
+C     COMPUTE ALMBDA FOR FIXED SLACK VARIABLES.
+C
+      DO I = 1, MINEQL
+        IF ( IVSTAT(MEQUAL+I) .GT. 0 ) THEN
+C         A FIXED SLACK VARIABLE. THE GRADIENT 
+C         CONTRIBUTION IS ZERO AND THE CONSTRAINT
+C         CONTRIBUTION IS THE APPROPRIATE COMPONENT
+C         OF -(PI)I.
+C
+          ALMBDA(I) = -PI(MEQUAL+I)
+        ENDIF
+      enddo
+C
+C     COMPUTE ALMBDA FOR THE FIXED ORIGINAL PROBLEM VARIABLES.
+C
+      IOFFST = MEQUAL + MINEQL + 1
+      DO I = 1, NDIM
+        IF ( IVSTAT(IOFFST+I) .GT. 0 ) THEN
+C         A FIXED ORIGINAL PROBLEM VARIABLE.
+          ALMBDA(MINEQL+1+I) = GRAD(I) - ATPI(I)
+        ENDIF
+      enddo
+C
+C     IF NECESSARY, COMPUTE THE ARTIFICIAL VARIABLE WEIGHTING
+C     FACTOR RHO. RHO IS COMPUTED SO THAT THE ARTIFICIAL VARIABLE
+C     WILL BE DROPPED FIRST.
+C
+      IF ( .NOT. GOTRHO .AND. IVSTAT(MEQUAL+MINEQL+1) .EQ. 2) THEN
+C
+        ALMMAX = ZERO
+C        
+        DO I = 1, NX
+          ISTAT = IVSTAT(MEQUAL+I)
+C
+          IF (  I .NE. MINEQL + 1 .AND. ( (ISTAT .EQ. 1 
+     $         .AND. ALMBDA(I) .LT. ZERO) .OR. (ISTAT
+     $         .EQ. 2 .AND. ALMBDA(I) .GT. ZERO) )  ) THEN
+C
+            ALMMAX = MAX( ALMMAX, ABS(ALMBDA(I)) )
+C
+          ENDIF
+C
+        enddo
+C
+C                           T
+C       MAKE SURE RHO > SFEZ PI - CHI*XI + ALMMAX. (NOTE: GOTCHI SHOULD
+C       BE FALSE AT THIS POINT BECAUSE FEAS VAR HAS NOT YET BEEN
+C       DROPPED. THUS, CHI SHOULD BE AT ITS INITIAL VALUE OF 1.0)
+C       THUS, SINCE CHI*XI>=0, IT IS SUFFICIENT TO HAVE
+C       RHO > SFEZ PI + ALMMAX.
+C
+        RHO =  DOT_PRODUCT(SFEZ(1:NROW),PI(1:NROW)) +
+     $                   ALMMAX + 10.0D0*HDMCON(6)
+C
+C       MAKE SURE RHO IS POSITIVE.
+C
+        RHO = MAX( ONE, RHO )
+C
+        GOTRHO = .TRUE.
+C
+      ENDIF
+C
+      IF ( IVSTAT(MEQUAL+MINEQL+1) .GT. 0 ) THEN
+C       COMPUTE ALMBDA FOR THE FEASIBILITY VARIABLE XI.
+C       NOTE: THE CONTRIBUTION OF XI TO THE OBJECTIVE IS
+C             RHO*XI + 0.5*CHI*(XI**2) 
+C
+        ALMBDA(MINEQL+1) =  RHO + CHI*XI -
+     $                       DOT_PRODUCT(SFEZ(1:NROW),PI(1:NROW))
+C
+      ENDIF
+C
+C
+      RETURN
+      END

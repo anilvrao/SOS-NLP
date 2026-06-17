@@ -1,0 +1,170 @@
+      subroutine   xdslv2   ( nlist , lrowls, lcolls, lvalue, unsym ,
+     1                        neqns , nnzero, maxnz , nrecrd, maxrec,
+     2                        wafile, invp  , coord1, coord2, diag  ,
+     3                        values, recpos, reclen, srtlst, srtval,
+     4                        colstr, error  )
+c
+c
+c     ==================================================================
+c     ====  xdslv2 -- add a list of triples to the row and column   ====
+c     ====            and value lists                               ====
+c     ==================================================================
+c     ==================================================================
+c
+c     purpose
+c     -------
+c
+c     xdslv2 adds a list of triples to the coordinate and value lists 
+c     representing the matrix structure.  when the list is full
+c     it is sorted and compressed.  If necessary, some of list
+c     is written to file wafile.
+c
+c     created         19-dec-96   -- rgg --
+c     last modified   
+c
+c     input arguments
+c     ---------------
+c
+c     nlist       i   number of entries in the local list
+c     lrowls      i   array holding row entries to insert
+c     lcolls      i   array holding column entries to insert
+c     lvalue      d   array holding value entries to insert
+c     unsym       l   symmetric/unsymmetric logical flag
+c     neqns       i   number of equations
+c     maxnz       i   size of coord2 and coord1 arrays.
+c     maxrec      i   length of recpos and reclen arrays.
+c     wafile      i   unit number for i/o file
+c     invp        i   old to new permutation
+c
+c     input/output arguments
+c     ----------------------
+c
+c     nnzero      i   the number of entries in coord2 and coord1
+c     nrecrd      i   number of records written to wafile
+c     diag        d   values of the permuted diagonal
+c     coord1,
+c       coord2    i   lists of coordinates
+c     values      d   corresponding value entries
+c     recpos      i   array of length nrecrd holding starting i/o
+c                     positions
+c     reclen      i   array of length nrecrd holding length of
+c                     each i/o record
+c
+c     working storage
+c     ---------------
+c
+c     srtlst      i   array used for integer sorting
+c     srtval      i   array used for floating point sorting
+c     colstr      i   array used for sorting
+c
+c     output arguments
+c     ----------------
+c
+c     error       i   error flag, = -1 if i/o error occurred.
+c
+c     ==================================================================
+ 
+c     --------------
+c     ... parameters
+c     --------------
+ 
+      integer             nlist , neqns , nnzero, maxnz , nrecrd, 
+     1                    maxrec, wafile, error
+
+      logical             unsym
+ 
+      integer             lrowls (*), lcolls (*), 
+     1                    invp   (*), coord1 (*), coord2 (*),
+     2                    recpos (*), reclen (*),
+     3                    srtlst (*), colstr (*)
+
+      double precision    lvalue (*), diag   (*), values (*),
+     1                    srtval (*)
+ 
+c     -------------------
+c     ... local variables
+c     -------------------
+ 
+      integer             i,      newcol, newrow, oldcol, oldrow
+
+      double precision    value
+ 
+c     --------------------
+c     ... subprograms used
+c     --------------------
+ 
+      integer             xdslni
+ 
+      external            xdslni
+ 
+c     ==================================================================
+
+      error = 0
+
+c     ------------------
+c     ... for each entry
+c     ------------------
+
+      do i = 1, nlist                        
+
+          oldrow = lrowls(i)
+          oldcol = lcolls(i)
+
+c         --------------------           
+c         ... get new indicies
+c         --------------------
+
+          newrow = invp(oldrow)
+          newcol = invp(oldcol)
+
+          value  = lvalue(i)
+
+c         ----------------------------
+c         ... process a diagonal entry
+c         ----------------------------
+
+          if ( newcol .eq. newrow ) then
+              diag(newcol) = diag(newcol) + value
+              cycle
+          end if
+
+c         ------------------------------------------------
+c         ... check to see if entry can be added to lists.
+c             if not, sort and compress.
+c         ------------------------------------------------
+
+          if ( nnzero+1 .gt. maxnz ) then 
+
+c.debug
+c     write(6,'("before xdslvz")')
+c.debug
+              call xdslvz ( .false., neqns, nnzero, maxnz, nrecrd,
+     1                      maxrec, wafile, coord1, coord2, values,
+     2                      recpos, reclen, srtlst, srtval, colstr, 
+     3                      error )
+
+              if ( error .ne. 0 ) return
+ 
+          end if
+
+c         ----------------------------------
+c         ... convert to chevron coordinates
+c         ----------------------------------
+ 
+          nnzero = nnzero + 1
+ 
+          coord1(nnzero) = min ( newcol, newrow )
+
+          if ( unsym ) then
+              coord2(nnzero) = newcol - newrow
+          else
+              coord2(nnzero) = abs ( newcol - newrow )
+          end if
+
+          values(nnzero) = value
+
+      enddo
+ 
+c     ==================================================================
+
+      end

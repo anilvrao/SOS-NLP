@@ -1,0 +1,344 @@
+
+
+
+      SUBROUTINE LSDPQP(GMAT,IROWG,JSTRG,NONZG,MCON,NDIM,
+     $    WORK,NWORK,IWORK,NIWORK,NEEDED,CLWR,CUPR,CVEC,
+     $    PVEC,XLWR,XUPR,XVEC,IPC,IPU,ISTART,
+     $    IT,ISTATC,ISTATV,CNDNUM,NUMKTF,IERLDP)
+C
+C ======================================================================
+C     LSDPQP===>lsdpqp   J.T. BETTS
+C ======================================================================
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C
+C         PURPOSE:  COMPUTE THE SEARCH DIRECTION VECTOR PVEC, BY
+C                   SOLVING A LEAST DISTANCE PROGRAMMING QP SUBPROBLEM
+C
+C                   MIN  .5*(P**T)P 
+C
+C                   SUBJECT TO THE CONSTRAINTS
+C
+C                          | GP |
+C                   CLWR < |    | < CUPR
+C                          |  P |
+C
+C
+C         INPUT:
+C
+C            GMAT   JACOBIAN MATRIX STORED AS AN ARRAY (NONZG)
+C            IROWG  ROW INDEX OF NONZERO IN GMAT (NONZG)
+C            JSTRG  COLUMN START INDEX (NDIM+1)
+C            NONZG  NUMBER OF NONZEROS IN GMAT
+C                   NOTE: NONZG  = JSTRG(NDIM+1)-1
+C            MCON   NUMBER OF CONSTRAINTS  (GT.0)
+C            NDIM   NUMBER OF VARIABLES
+C            WORK   WORK ARRAY (NWORK)
+C            NWORK  LENGTH OF WORK ARRAY (GT. 
+C                   6*NDIM + 3*MCON)
+C            IWORK  INTEGER WORK ARRAY (NIWORK)
+C            NIWORK LENGTH OF INTEGER WORK ARRAY (GT. 2*NDIM + 
+C                                   MCON + 1) 
+C            CLWR   CONSTRAINT LOWER BOUND (MCON)
+C            CUPR   CONSTRAINT UPPER BOUND (MCON)
+C            CVEC   CONSTRAINTS AT XVEC (MCON)
+C            PVEC   SEARCH VECTOR (NDIM)
+C            XLWR   VARIABLE LOWER BOUND (NDIM)
+C            XUPR   VARIABLE UPPER BOUND (NDIM)
+C            XVEC   ESTIMATE OF INDEPENDENT VARIABLES (NDIM)
+C            IPC    ITERATION PRINT CONTROL
+C            IPU    OUTPUT UNIT NO.
+C            ISTART SCHUR-COMPLEMENT START FLAG
+C            IT     ITERATION NUMBER
+C
+C         OUTPUT:
+C
+C            ISTATC CONSTRAINT STATUS VECTOR
+C            ISTATV VARIABLE STATUS VECTOR
+C            CNDNUM CONDITION NUMBER OF KT MATRIX OR JACOBIAN MATRIX
+C            NUMKTF NUMBER OF MATRIX FACTORIZATIONS
+C            IERLDP INTEGER ERROR RETURN FLAG
+C            NEEDED STORAGE REQUIRED WHEN NWORK OR NIWORK IS TOO SMALL
+C            PVEC   THE SOLUTION POINT
+C
+C     ******************************************************************
+C
+      PARAMETER (ZERO=0.0D0,ONE=1.0D0)
+C
+      COMMON /STATIS/ INSTAT(30),RLSTAT(20)
+      COMMON /PERCOM/ ISQPER(20)
+C
+      INCLUDE '../commons/NLPSPR.CMN'
+C
+      COMMON /ITEREF/ MAXREF,MAXRFN,IREFIN
+      COMMON /INERVL/ INREQD
+C
+      COMMON /KONSTN/ 
+     *  ZEROMN  ,ZEROOT  ,BIGNUM  ,BGROOT  ,BIGBND  ,BIGCND
+C
+      DIMENSION  GMAT(NONZG),IROWG(NONZG),JSTRG(NDIM+1),WORK(NWORK),
+     $    IWORK(NIWORK),CVEC(MCON),PVEC(NDIM),
+     $    XVEC(NDIM),CLWR(MCON),CUPR(MCON),XLWR(NDIM),XUPR(NDIM),
+     $    ISTATC(MCON),ISTATV(NDIM)
+      LOGICAL BADQP,LINTRM
+      EXTERNAL IDENHS
+C
+C         COMPUTE POINTERS FOR REAL WORK ARRAY
+C
+      LCHMAT = 1
+      LCCVCT = LCHMAT + NDIM
+      LCGZRO = LCCVCT + NDIM
+      LCCUPR = LCGZRO + NDIM
+      LCCLWR = LCCUPR + MCON
+      LCXUPR = LCCLWR + MCON
+      LCXLWR = LCXUPR + NDIM
+      LCCNML = LCXLWR + NDIM
+      LCVRML = LCCNML + MCON
+      LCWORK = LCVRML + NDIM
+      LNWORK = NWORK - LCWORK + 1
+C
+C         ESTIMATE WORKING STORAGE 
+C
+      IF(QPOPTN.NE.'SPARSE') THEN
+        CALL NLSPST(NDIM,MCON,NEEDIW,NEEDRW)
+      ELSE
+        NEEDRW = 0
+        NEEDIW = 0
+      ENDIF
+C
+C         COMPUTE LENGTH OF REAL WORK ARRAY 
+C
+      IF(LNWORK.LT.NEEDRW) THEN
+        IF(IPC.GE.10) WRITE(IPU,1001) NWORK,LCWORK+1
+        NEEDED = NEEDRW + LCWORK + 1
+        IERLDP = -1
+        GO TO 10000
+      ENDIF
+C
+C         COMPUTE POINTERS FOR INTEGER WORK ARRAY
+C
+      LCIRWH = 1
+      LCJSTH = LCIRWH + NDIM
+      LCIWRK = LCJSTH + (NDIM+1)
+      LNIWRK = NIWORK - LCIWRK + 1
+C
+C         COMPUTE LENGTH OF INTEGER WORK ARRAY 
+C
+      IF(LNIWRK.LT.NEEDIW) THEN
+        NEEDED = NEEDIW + LCIWRK - 1
+        IF(IPC.GE.10) WRITE(IPU,1002) NIWORK,NEEDED
+        IERLDP = -2
+        GO TO 10000
+      ENDIF
+C
+C         DEFINE DIAGONAL HESSIAN MATRIX (LDP)
+C
+      DO I = 1,NDIM
+        IWORK(LCIRWH+I-1) = I
+        IWORK(LCJSTH+I-1) = I
+        WORK(LCHMAT+I-1) = ONE
+      ENDDO
+      IWORK(LCJSTH+NDIM) = NDIM + 1
+C
+C         INPUT OBJECTIVE FUNCTION LINEAR TERM AS ZERO
+C
+      LINTRM = .TRUE.
+      WORK(LCCVCT:LCCVCT+NDIM-1) = ZERO
+C
+C         DEFINE LOWER AND UPPER BOUNDS
+C
+      MEQUAL = 0
+      DO I = 1,MCON
+C
+        IF(CLWR(I).EQ.CUPR(I)) THEN
+C
+C         EQUALITY CONSTRAINT
+C
+          MEQUAL = MEQUAL + 1
+          WORK(LCCLWR+I-1) = CLWR(I)-CVEC(I)
+          WORK(LCCUPR+I-1) = CUPR(I)-CVEC(I)
+C
+        ELSE
+C
+C         INEQUALITY CONSTRAINT
+C
+          IF(CLWR(I).LE.-BIGBND) THEN
+            WORK(LCCLWR+I-1) = -BIGBND
+          ELSE
+            WORK(LCCLWR+I-1) = CLWR(I)-CVEC(I)
+          ENDIF
+C
+          IF(CUPR(I).GE.BIGBND) THEN
+            WORK(LCCUPR+I-1) = BIGBND
+          ELSE
+            WORK(LCCUPR+I-1) = CUPR(I)-CVEC(I)
+          ENDIF
+C
+        ENDIF
+C
+      ENDDO
+C
+C         DEFINE LOWER AND UPPER BOUNDS FOR VARIABLES
+C
+      DO I = 1,NDIM
+C
+        IF(XLWR(I).EQ.XUPR(I)) THEN
+C
+C         EQUALITY CONSTRAINT
+C
+          WORK(LCXLWR+I-1) = XLWR(I)-XVEC(I)
+          WORK(LCXUPR+I-1) = XUPR(I)-XVEC(I)
+C
+        ELSE
+C
+C         INEQUALITY CONSTRAINT
+C
+          IF(XLWR(I).LE.-BIGBND) THEN
+            WORK(LCXLWR+I-1) = -BIGBND
+          ELSE
+            WORK(LCXLWR+I-1) = XLWR(I)-XVEC(I)
+          ENDIF
+C
+          IF(XUPR(I).GE.BIGBND) THEN
+            WORK(LCXUPR+I-1) = BIGBND
+          ELSE
+            WORK(LCXUPR+I-1) = XUPR(I)-XVEC(I)
+          ENDIF
+C
+        ENDIF
+C
+      ENDDO
+C
+C
+      IF(IT.EQ.ITFZQP) THEN
+C
+C         WRITE DATA FOR QUADRATIC PROGRAMMING SUBPROBLEM
+C
+
+          IF(QPOPTN.EQ.'SPARSE') THEN
+            CALL FILSHR(NDIM,MCON,WORK(LCHMAT),IWORK(LCIRWH),
+     $        IWORK(LCJSTH),NDIM,WORK(LCCVCT),WORK(LCGZRO),GMAT,IROWG, 
+     $        JSTRG,NONZG,WORK(LCCUPR),WORK(LCCLWR),PVEC,
+     $        WORK(LCXUPR),WORK(LCXLWR),WORK(LCWORK),LNWORK,
+     $        BIGBND,IPU,IPC,ISTART,IPUFZF,.TRUE.,'SRCHFZQP.FIL')
+          ELSE
+            CALL FILDNS(NDIM,MCON,NDIM,WORK(LCHMAT),WORK(LCCVCT),
+     $        MCON,GMAT,WORK(LCCUPR),WORK(LCCLWR),
+     $        WORK(LCXUPR),WORK(LCXLWR),BIGBND,IPU,IPC,
+     $        LINTRM,ISTART,PVEC,
+     $        IPUFZF,.TRUE.,'SRCHFZQP.FIL')
+          ENDIF
+C
+        STOP
+C
+      ENDIF
+C
+C         SOLVE WITHOUT ITERATIVE REFINEMENT
+C
+      IREFIN = 0
+C
+C         SET INERTIA SHIFT 
+C
+      INREQD = 0
+C
+      IF( QPOPTN.NE.'SPARSE') THEN
+C
+C         CALL THE DENSE QP
+C
+        IPCDNS = IPC
+        LDG = MAX(1,JSTRG(1))
+C
+        CALL NLSPQP ( NDIM         , MCON         , NDIM         ,
+     1                WORK(LCHMAT) , IDENHS       , WORK(LCCVCT) ,
+     2                LDG          , GMAT         , WORK(LCCUPR) ,
+     3                WORK(LCCLWR) , WORK(LCXUPR) ,
+     4                WORK(LCXLWR) , BIGBND       , IPU          ,
+     5                IPCDNS       , LINTRM       , ISTART       ,
+     6                LNIWRK       , LNWORK       , PVEC         ,
+     7                IWORK(LCIWRK), WORK(LCWORK) , WORK(LCCNML) ,
+     8                WORK(LCVRML) , ISTATC       , ISTATV       ,
+     9                QUAD         , NITRFP       , NITRQP       ,
+     A                NOUTER       , NLVMOD       , CRITMU       , 
+     B                MNP1WK       , MXP1WK       , AVP1WK       ,
+     C                MNP2WK       , MXP2WK       , AVP2WK       ,
+     D                ZHLMIN       , ZHLMAX       , SMINAA       ,
+     E                SMAXAA       , IERDQP  )
+          
+C
+        ISQPER(2) = NITRFP + NITRQP
+        INSTAT(29) = INSTAT(29) + NITRFP
+        NCHLFC = NOUTER + NLVMOD
+        NUMKTF = NCHLFC
+        IF(SMINAA.GT.ZERO) THEN
+          CNDNUM = SMAXAA/SMINAA
+        ELSE
+          CNDNUM = -ONE
+        ENDIF
+C
+C         SET IERLDP FROM THE IERDQP OUTPUT
+C
+        IERLDP = IERDQP
+        NEQC = 0
+        BADQP = .FALSE.
+        DO I=1,MCON
+          IF (ISTATC(I).LT.0) THEN
+            BADQP = .TRUE.
+            EXIT
+          ELSEIF (ISTATC(I).EQ.3) THEN
+            NEQC = NEQC + 1
+          ENDIF
+        ENDDO
+        IF (.NOT.BADQP)  BADQP = NEQC.NE.MEQUAL
+        IF(IERLDP.EQ.0.AND.BADQP) THEN
+          IERLDP = 3
+        ELSEIF(IERDQP.EQ.2.OR.IERDQP.EQ.-1022) THEN
+          IERLDP = -1104
+        ELSEIF(IERDQP.EQ.5) THEN
+          IERLDP = -1014
+        ENDIF
+C
+C         RESTORE ISTATC 
+C
+        IF(BADQP) THEN
+          DO I = 1,MCON
+            IF(CLWR(I).EQ.CUPR(I)) THEN
+              ISTATC(I) = 3
+            ELSEIF(ISTATC(I).EQ.-2) THEN
+              ISTATC(I) = 2
+            ELSEIF(ISTATC(I).EQ.-1) THEN
+              ISTATC(I) = 1
+            ENDIF
+          ENDDO
+        ENDIF
+C
+      ELSE
+C
+        CALL SHURQP(NDIM,MCON,WORK(LCHMAT),IWORK(LCIRWH),
+     $      IWORK(LCJSTH),NDIM,WORK(LCCVCT),WORK(LCGZRO),QUAD,GMAT,
+     $      IROWG,JSTRG,NONZG,WORK(LCCUPR),WORK(LCCLWR),WORK(LCCNML),
+     $      ISTATC,PVEC,WORK(LCXUPR),WORK(LCXLWR),WORK(LCVRML),ISTATV,
+     $      WORK(LCWORK),LNWORK,IWORK(LCIWRK),LNIWRK,NEEDED,BIGBND,
+     $      IPU,IPC,ISTART,CNDNUM,IERLDP)
+C
+        CALL CLKOUT(13,TIMKTF,XNMKTF)
+        NUMKTF = XNMKTF
+C
+      ENDIF
+C
+      IF(IERLDP.EQ.-1014) THEN
+        NEEDED = NEEDED + LCWORK - 1
+      ELSEIF(IERLDP.EQ.-1019) THEN
+        NEEDED = NEEDED + LCIWRK - 1
+      ENDIF
+C
+10000 CONTINUE
+C
+      RETURN
+C
+ 1001 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'REAL WORK ARRAY FOR SPARSE SEAR
+     $CH DIMENSIONED ',I6,' NEED ',I6,T106,'*')
+ 1002 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'INTEGER WORK ARRAY FOR SPARSE S
+     $EARCH DIMENSIONED ',I6,' NEED ',I6,T106,'*')
+C
+      END

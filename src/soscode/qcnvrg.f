@@ -1,0 +1,191 @@
+
+
+
+
+
+
+      SUBROUTINE QCNVRG(GRDLNM,EPSG,ERREQL,EPSC,ERPTHB,EPSB,
+     $    PENMU,CNDNUM,ETARAT,DELYVC,YVEC,DELETA,ETAVEC,DELLAM,VLAMDA,
+     $    ALFA,DELFNM,FNOM,FMIN,OBJTOL,NVAR,MSUBE,MSUBB,MAXCON,
+     $    MAXBND,IT,NITMAX,IQPTRM)
+C
+C
+C ======================================================================
+C     QCNVRG===>QCNVRG   J.T. BETTS
+C ======================================================================
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C         PURPOSE:  PERFORM CONVERGENCE TESTS 
+C
+C         INPUT:
+C
+C           GRDLNM  NORM OF GRADIENT OF LAGRANGIAN
+C           EPSG    GRADIENT TOLERANCE
+C           ERREQL  ERROR IN EQUALITY CONSTRAINTS
+C           EPSC    EQUALITY CONSTRAINT TOLERANCE
+C           ERPTHB  ERROR IN CENTRAL PATH BOUND CONSTRAINTS
+C           EPSB    BOUND CONSTRAINT TOLERANCE
+C           PENMU   BARRIER PARAMETER
+C           CNDNUM  KT CONDITION NUMBER
+C           ETARAT  RATE OF CHANGE OF ETANRM BETWEEN BARRIER UPDATES
+C           DELYVC  SEARCH DIRECTION (NVAR)
+C           YVEC    VARIABLES (NVAR)
+C           DELETA  ETAVEC SEARCH DIRECTION (MAXCON)
+C           ETAVEC  CONSTRAINT MULTIPLIERS AT YVEC (MAXCON)
+C           DELLAM  VLAMDA SEARCH DIRECTION (MAXBND)
+C           VLAMDA  BOUND MULTIPLIERS AT YVEC (MAXBND)
+C           ALFA    STEP LENGTH
+C           DELFNM  OBJECTIVE FUNCTION GRADIENT NORM
+C           FNOM    CURRENT OBJECTIVE FUNCTION VALUE
+C           FMIN    PREDICTED MINIMUM OBJECTIVE FUNCTION
+C           OBJTOL  OBJECTIVE TOLERANCE
+C           NVAR    NUMBER OF VARIABLES
+C           MSUBE   NUMBER OF EQUALITY CONSTRAINTS
+C           MSUBB   NUMBER OF BOUNDS
+C           MAXCON  MAXIMUM NUMBER OF CONSTRAINTS MAX(MSUBE,1)
+C           MAXBND  MAXIMUM NUMBER OF BOUNDS MAX(MSUBB,1)
+C           IT      ITERATION NUMBER
+C           NITMAX  MAXIMUM NUMBER OF ITERATIONS
+C           IQPTRM   TERMINATION FLAG.  MUST BE INPUT.  SEE BELOW
+C
+C         OUTPUT:
+C
+C            IQPTRM  TERMINATION FLAG
+C                   =0        NO TERMINATION.
+C                   =1        NORMAL TERMINATION.  
+C                   =2        NORMAL TERMINATION ON CENTRAL PATH
+C                             ABNORMAL TERMINATION
+C                   =3        SMALL CHANGES
+C                   =4        MAX. NUMBER OF ITERATIONS
+C                   =5        FUNCTION ERROR ON GRAD. EVAL.
+C                   =8        INFEASIBLE CONSTRAINTS
+C                   =9        RANK DEFICIENT CONSTRAINTS
+C                   .LT.0     USER ABORT
+C
+      DIMENSION DELYVC(NVAR),YVEC(NVAR),DELETA(MAXCON),ETAVEC(MAXCON),
+     $          VLAMDA(MAXBND),DELLAM(MAXBND)
+C
+      COMMON /KONSTN/ 
+     *  ZEROMN  ,ZEROOT  ,BIGNUM  ,BGROOT  ,BIGBND  ,BIGCND
+C
+      PARAMETER (ZERO=0.0D0,ONE=1.0D0,ONEEP2=1.0D2)
+      PARAMETER (DIVRGE=1.0D2)
+C
+C         COMPUTE RESOLUTION TEST QUANTITIES
+C
+      SMLSTP = ONEEP2*ZEROMN
+      RESTST = ZERO
+      SNORM = ZERO
+      DO I = 1,NVAR
+        DELX = ALFA*ABS(DELYVC(I))
+        RESTST = MAX(RESTST,DELX/(ONE + ABS(YVEC(I))))
+        SNORM = SNORM + DELYVC(I)**2
+      enddo
+C
+      DO I = 1,MSUBE
+        DELX = ALFA*ABS(DELETA(I))
+        RESTST = MAX(RESTST,DELX/(ONE + ABS(ETAVEC(I))))
+      enddo
+C
+      DO I = 1,MSUBB
+        DELX = ALFA*ABS(DELLAM(I))
+        RESTST = MAX(RESTST,DELX/(ONE + ABS(VLAMDA(I))))
+      enddo
+C
+      SNORM = SQRT(SNORM)
+      RHSTST = EPSG*MAX(ONE,DELFNM)
+      TAU = OBJTOL/(ONE + ABS(FNOM))
+      TOLTST = SQRT(TAU)
+C
+C ----------------------------------------------------------------------
+C
+C         NORMAL TERMINATION TESTS
+C
+C ----------------------------------------------------------------------
+C
+      IF(ERREQL.LT.EPSC.AND.ERPTHB.LT.EPSB.AND.IT.GT.1) THEN
+C
+C         CENTRAL PATH CONSTRAINTS ARE WITHIN TOLERANCE
+C
+        IF(GRDLNM.LT.RHSTST) THEN
+C
+C         PROJECTED GRADIENT IS WITHIN TOLERANCE 
+C
+          IF( (ABS(FNOM-FMIN).LT.OBJTOL.AND.RESTST.LT.TOLTST).OR.
+     $     (GRDLNM.LT.ZEROOT)) THEN
+C
+C         EITHER 
+C         (A) OBJECTIVE FUNCTION AND STEP ARE WITHIN TOLERANCE OR
+C         (B) PROJECTED GRADIENT ERROR IS SO
+C             SMALL THAT A RESOLUTION TEST IS UNWARRANTED
+C
+            IF(PENMU.LT.EPSC.OR.MSUBB.EQ.0) THEN
+C
+C               NORMAL TERMINATION
+C
+              IQPTRM = 1
+C
+            ELSEIF(IT.GT.1) THEN
+C
+C               NORMAL TERMINATION ON CENTRAL PATH
+C
+              IQPTRM = 2
+C
+            ENDIF
+C 
+          ENDIF
+C
+        ENDIF
+C      
+      ENDIF
+C
+      IF(IQPTRM.EQ.0) THEN
+C
+C ----------------------------------------------------------------------
+C
+C         ABNORMAL TERMINATION TESTS
+C
+C ----------------------------------------------------------------------
+C
+C
+        IF(IT.GT.NITMAX) THEN
+C
+C         MAXIMUM NUMBER OF ITERATIONS
+C
+          IQPTRM = 4
+C
+        ELSEIF(IT.GT.2.AND.(RESTST.LT.SMLSTP.OR.PENMU.LT.ZEROMN) ) THEN
+C
+C         SMALL STEP TERMINATION
+C
+          IQPTRM = 3
+C
+        ELSEIF(SNORM*ZEROMN.GT.ONE.AND.IT.GT.1
+     $          .AND.ERREQL.GT.EPSC) THEN
+C
+C               INFEASIBLE CONSTRAINTS
+C
+          IQPTRM = 8
+C
+C
+        ELSEIF(PENMU.LT.ZEROOT.AND.ETARAT.GT.ONE.AND
+     $         .CNDNUM.GT.BIGCND) THEN
+C
+C               RANK DEFICIENT CONSTRAINTS
+C
+          IQPTRM = 9
+C
+C
+        ELSEIF(CNDNUM.GT.BIGCND**2) THEN
+C
+C               EXCESSIVE CONDITION NUMBER
+C
+          IQPTRM = -10
+C
+        ENDIF
+C
+      ENDIF
+C
+      RETURN
+      END

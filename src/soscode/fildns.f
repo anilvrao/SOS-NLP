@@ -1,0 +1,125 @@
+      SUBROUTINE   FILDNS   ( NDIM  , MCON  , LDH   , HMAT  , CVCT  , 
+     1                        LDA   , AMAT  , BUPR  , BLWR  , XUPR  ,
+     2                        XLWR  , BIGBND, IOUTPT, MSGLVL, LINTRM,
+     3                        ISTART, XVEC  , IPRU  , RYTE  ,FYLE)
+C
+C ======================================================================
+C     FILDNS===>fildns   J.T. BETTS
+C ======================================================================
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C             NDIM    NUMBER OF VARIABLES
+C             MCON    NUMBER OF GENERAL LINEAR CONSTRAINTS
+C
+C             ----    OBJECTIVE FUNCTION DATA
+C
+C             LDH     LEADING DECLARED DIMENSION FOR HESSIAN
+C             HMAT    HESSIAN MATRIX (LDH*NDIM)
+C             CVCT    OBJECTIVE FUNCTION LINEAR TERM (NDIM)
+C
+C             ----    CONSTRAINT DATA (DUMMY ARGUMENTS WHEN MCON = 0)
+C
+C             LDA     LEADING DECLARED DIMENSION FOR JACOBIAN
+C             AMAT    JACOBIAN MATRIX (LDA*NDIM)
+C             BUPR    CONSTRAINT UPPER BOUND VECTOR (MCON)
+C             BLWR    CONSTRAINT LOWER BOUND VECTOR (MCON)
+C
+C             ----    SIMPLE BOUNDS
+C
+C             XUPR    UPPER BOUND FOR INDEPENDENT VARIABLES (NDIM)
+C             XLWR    LOWER BOUND FOR INDEPENDENT VARIABLES (NDIM)
+C             BIGBND  BIG BOUND VALUE; ANY BOUNDS AS LARGE AS THIS
+C                     VALUE WILL BE TREATED AS INFINITE.
+C                     (INPUTTING A NON-POSITIVE VALUE FOR BIGBND
+C                      RESULTS IN A DEFAULT VALUE OF 1 / 100*ESPILON)
+C
+C             ----    ALGORITHM RELATED DATA
+C
+C             IOUTPT  OUTPUT UNIT NO.
+C             MSGLVL  OUTPUT CONTROL FLAG
+C                     = 0 --- NO PRINT
+C                     MSGLVL .GT. 100 --- DEBUG PRINT
+C             LINTRM  IS LINEAR TERM PRESENT? (LOGICAL)
+C             ISTART   INTEGER START OPTION FLAG
+C                     = -1 --- HOT START
+C                     =  0 --- WARM START
+C                     =  1 --- COLD START
+C                     =  2 --- COLD START
+C
+C     
+C         +-----------------------------------+
+C         | STANDARD INPUT/OUTPUT PARAMETERS: |
+C         +-----------------------------------+
+C
+C             XVEC    ON INPUT, MUST HOLD AN INITIAL GUESS FOR
+C                     INDEPENDENT VARIABLES; ON OUTPUT, HOLDS THE FINAL
+C                     VALUES FOR INDEPENDENT VARIABLES (NDIM)
+C
+C
+C         THIS SUBROUTINE IS DESIGNED TO READ OR WRITE A FILE
+C         CONTAINING THE DATA TO DEFINE A DENSE QUADRATIC PROGRAM
+C         THE INPUT FORMAT IS DESIGNED TO BE SIMILAR TO THE 
+C         CALLING SEQUENCE OF QPOPT, WITH THE EXCEPTION OF THE
+C         FOLLOWING THREE ARGUMENTS
+C
+C             IPRU    OUTPUT UNIT NO.
+C             RYTE    LOGICAL FLAG SET TRUE TO WRITE THE FILE
+C                     SET FALSE TO READ THE FILE
+C             FYLE    FILE NAME
+C
+      DIMENSION HMAT(*),CVCT(*),AMAT(*),
+     $    BUPR(*),BLWR(*),XVEC(*),XUPR(*),
+     $    XLWR(*)
+C
+      CHARACTER(LEN=*) FYLE
+      LOGICAL LINTRM,RYTE
+C
+      IF(RYTE) THEN
+C
+C         WRITE DATA FOR TEST PROBLEM
+C
+          OPEN(IPRU,FILE=FYLE,STATUS='UNKNOWN')
+C
+          WRITE(IPRU,1002) NDIM,MCON,LDH,LDA,IOUTPT,MSGLVL,LINTRM,ISTART
+C
+          LNHMAT = (NDIM*(NDIM+1))/2
+          WRITE(IPRU,1001) (HMAT(II),II=1,LNHMAT)
+          WRITE(IPRU,1001) (CVCT(II),II=1,NDIM)
+          LNAMAT = MCON*NDIM
+          WRITE(IPRU,1001) (AMAT(II),II=1,LNAMAT)
+          WRITE(IPRU,1001) (BUPR(II),II=1,MCON)
+          WRITE(IPRU,1001) (BLWR(II),II=1,MCON)
+          WRITE(IPRU,1001) (XUPR(II),II=1,NDIM)
+          WRITE(IPRU,1001) (XLWR(II),II=1,NDIM)
+          WRITE(IPRU,1001) (XVEC(II),II=1,NDIM)
+          WRITE(IPRU,1001) BIGBND
+C
+      ELSE
+C
+C         READ IN DATA FOR TEST PROBLEM
+C
+          OPEN(IPRU,FILE=FYLE,STATUS='UNKNOWN')
+C
+C
+          READ(IPRU,1002) NDIM,MCON,LDH,LDA,IOUTPT,MSGLVL,LINTRM,ISTART
+C
+          LNHMAT = (NDIM*(NDIM+1))/2
+          READ(IPRU,1001) (HMAT(II),II=1,LNHMAT)
+          READ(IPRU,1001) (CVCT(II),II=1,NDIM)
+          LNAMAT = MCON*NDIM
+          READ(IPRU,1001) (AMAT(II),II=1,LNAMAT)
+          READ(IPRU,1001) (BUPR(II),II=1,MCON)
+          READ(IPRU,1001) (BLWR(II),II=1,MCON)
+          READ(IPRU,1001) (XUPR(II),II=1,NDIM)
+          READ(IPRU,1001) (XLWR(II),II=1,NDIM)
+          READ(IPRU,1001) (XVEC(II),II=1,NDIM)
+          READ(IPRU,1001) BIGBND
+C
+      ENDIF
+C
+ 1001 FORMAT(5X,1PE27.19,1PE27.19,1PE27.19,1PE27.19)
+ 1002 FORMAT(5X,10I10)
+C
+      RETURN
+      END

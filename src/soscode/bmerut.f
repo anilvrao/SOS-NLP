@@ -1,0 +1,72 @@
+
+
+
+      SUBROUTINE BMERUT(CVEC,ETAVEC,BVEC,VLAMDA,FOBJ,SMTUVW,PENMU,
+     $    PENRHO,MSUBE,MSUBB,SMLNBI,BMERIT,CMERIT,XLAGRN,CDOTC)
+C
+C
+C ======================================================================
+C     MERIT ===>bmerit   J.T. BETTS
+C ======================================================================
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C         PURPOSE:  EVALUATE THREE QUANTITIES
+C                   (1) THE LOGARITHMIC BARRIER FUNCTION, AND;
+C                   (2) THE EQUALITY CONSTRAINT VIOLATION
+C                   (3) THE LAGRANGIAN
+C
+C         INPUT:
+C
+C           CVEC    EQUALITY CONSTRAINTS AT YVEC (MSUBE)
+C           ETAVEC  EQUALITY LAGRANGE MULTIPLIERS (MSUBE)
+C           BVEC    BOUND INEQUALITIES (MSUBB)
+C           VLAMDA  BOUND LAGRANGE MULTIPLIERS (MSUBB)
+C           FOBJ    OBJECTIVE FUNCTION AT YVEC 
+C           SMTUVW  THE TERM sum |t|+|u|+|v|+|w|
+C           PENMU   BARRIER PARAMETER
+C           PENRHO  RELAXATION PENALTY PARAMETER
+C           MSUBE   NUMBER OF EQUALITY CONSTRAINTS
+C           MSUBB   NUMBER OF BOUNDS
+C
+C         OUTPUT:
+C
+C           SMLNBI  THE TERM sum [ln (b_i)] IN THE LOG-BARRIER MERIT FUNCTION
+C           BMERIT  THE LOG-BARRIER MERIT FUNCTION
+C                   B = f - mu*sum [ln (b_i)] + rho*smtuvw
+C           CMERIT  CONSTRAINT VIOLATION FOR FILTER, max (|c|,|b*lambda - mu|)
+C           XLAGRN  LAGRANGIAN FUNCTION
+C           CDOTC   THE VIOLATION ERROR;
+C                   (cvec)^T(cvec) + (b*lambda - mu)^T(b*lambda - mu)
+C
+      DIMENSION CVEC(MSUBE),BVEC(MSUBB),ETAVEC(MSUBE),VLAMDA(MSUBB)
+C
+      PARAMETER (ZERO=0.0D0,ONE=1.0D0)
+C
+      SMLNBI = ZERO
+      BMERIT = FOBJ + PENRHO*SMTUVW
+      XLAGRN = FOBJ + PENRHO*SMTUVW
+C
+C         CONSTRUCT CONTRIBUTION FOR EQUALITY CONSTRAINTS
+C
+      CMERIT = ZERO
+      CDOTC = ZERO
+      DO I = 1,MSUBE
+        CMERIT = MAX(CMERIT,ABS(CVEC(I)))
+        CDOTC = CDOTC + CVEC(I)*CVEC(I)
+        XLAGRN = XLAGRN - ETAVEC(I)*CVEC(I)
+      enddo
+C
+C         CONSTRUCT CONTRIBUTION FOR BOUND INEQUALITIES
+C
+      DO I = 1,MSUBB
+        BLAM = BVEC(I)*VLAMDA(I)
+        CMERIT = MAX(CMERIT,ABS(BLAM - PENMU))
+        CDOTC = CDOTC + (BLAM - PENMU)**2
+        SMLNBI = SMLNBI + LOG(BVEC(I))
+        XLAGRN = XLAGRN - BLAM
+      enddo
+      BMERIT = BMERIT - PENMU*SMLNBI
+C
+      RETURN
+      END

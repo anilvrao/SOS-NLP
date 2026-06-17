@@ -1,0 +1,155 @@
+
+
+      SUBROUTINE SECANT(T,FT,T1,T2,F1,F2,ABSTOL,MAXITR,IFLAG) 
+C
+C ======================================================================
+C     SECANT===>secant   J.T. BETTS
+C ======================================================================
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      SAVE
+C
+C         PROGRAMMER  J.T.BETTS
+C
+C         PURPOSE:   COMPUTE THE ROOT OF AN EQUATION
+C         USING THE SECANT METHOD WITH BRACKETING.
+C
+C         ARGUMENTS:
+C
+C         T        INDEPENDENT VARIABLE
+C
+C         FT       DEPENDENT VARIABLE FT = F(T) TO BE 
+C                  DRIVEN TO ZERO
+C
+C         T1       INDEPENDENT VARIABLE AT ONE END OF INTERVAL
+C                  CONTAINING THE ROOT. 
+C
+C         T2       INDEPENDENT VARIABLE AT OTHER END OF INTERVAL
+C
+C         F1       FUNCTION AT T1
+C
+C         F2       FUNCTION AT T2
+C
+C         ABSTOL   ROOT TOLERANCE.  ROOT OF THE FUNCTION IS 
+C                  LOCATED WHEN ABS(F).LT.ABSTOL.
+C
+C         MAXITR   MAXIMUM NUMBER OF ITERATIONS
+C
+C         IFLAG    REVERSE COMMUNICATION CONTROL FLAG
+C                  IFLAG = 1 ... NORMAL TERMINATION AT ROOT
+C                  IFLAG = 2 ... MAXIMUM NUMBER OF ITERATIONS
+C                  IFLAG = 3 ... INPUT VALUES OF F HAVE SAME SIGN
+C                  IFLAG = -1 ...FUNCTION EVALUATION USING 
+C                  REVERSE COMMUNICATION
+C
+C         THE FLAG IFLAG MUST BE SET TO 1 PRIOR TO ENTERING THE
+C         ROUTINE.  IT IS ASSUMED THAT THE ROOT IS BRACKETED BETWEEN
+C         T1 AND T2.  THUS F(T1)*F(T2) .LT. 0
+C
+      PARAMETER (ZERO=0.0D0,ONE=1.0D0,POINT5=5.0D-1,ONEEP2=1.0D2)
+C
+C***********************************************************************
+C 
+      IF(IFLAG.LT.0) GO TO 501
+C
+C         INITIALIZE ROUTINE
+C
+      IT = 1
+C
+C         CHECK BRACKET CONDITION
+C
+      IF(F1*F2.GT.ZERO) THEN
+        IFLAG = 3
+        GO TO 1000
+      ENDIF
+C
+      IF(T1.LT.T2) THEN
+        TLWR = T1
+        TUPR = T2
+        FLWR = F1
+C
+      ELSE
+        TLWR = T2
+        TUPR = T1 
+        FLWR = F2
+      ENDIF
+C
+C         USE INPUT VALUE FOR T AS THE FIRST GUESS
+C
+      TSECNT = T
+      GO TO 120
+C
+ 110  CONTINUE
+C
+C         BEGIN ITERATION
+C
+      IT = IT + 1
+C
+C         CONSTRUCT SECANT ESTIMATE OF ROOT
+C
+      DELLIM = ONEEP2*MAX(ONE,ABS(T2))
+      DELT = T2-T1
+      DELF = F2-F1
+      ZTEST = (ONE+DELF)-ONE
+      IF(ZTEST.EQ.ZERO) THEN
+        TSECNT = POINT5*(TLWR + TUPR)
+      ELSE
+        SECNT = T2 - F2*DELT/DELF
+        TSECNT = MAX(T2-DELLIM,MIN(SECNT,T2+DELLIM))
+      ENDIF
+C
+ 120  CONTINUE
+C
+C         LIMIT NEW ESTIMATE TO LIE BETWEEN BOUNDS
+C
+      IF(TLWR.LT.TSECNT.AND.TSECNT.LT.TUPR) THEN
+        T = TSECNT
+      ELSE
+        T = POINT5*(TLWR + TUPR)
+      ENDIF
+C
+C         EVALUATE THE FUNCTION AT T
+C
+      IFLAG = -1
+      RETURN
+ 501  CONTINUE
+C
+C         TEST FOR CONVERGENCE
+C
+      IF(ABS(FT).LT.ABSTOL) IFLAG = 1
+      IF(IT.GT.MAXITR) IFLAG = 2
+      IF(IFLAG.GT.0) GO TO 1000
+C
+C         UPDATE ONE OF THE BOUNDS SUCH THAT THE
+C         ROOT REMAINS BRACKETED
+C
+      IF(FLWR*FT.LT.ZERO) THEN
+C
+C         THE ROOT LIES BETWEEN TLWR AND T
+C
+        TUPR = T
+C
+      ELSE
+C
+C        THE ROOT LIES BETWEEN T AND TUPR
+C  
+        TLWR = T
+        FLWR = FT
+C
+      ENDIF
+C
+C         UPDATE FUNCTION AND ROOT VALUES
+C
+      T1 = T2
+      T2 = T
+      F1 = F2
+      F2 = FT
+C
+C         RETURN FOR NEXT ITERATION
+C
+      GO TO 110
+ 1000 CONTINUE
+C
+C
+      RETURN
+      END

@@ -1,0 +1,127 @@
+
+      SUBROUTINE PLTLYN(NDIM,MCON,ALFA,FBRMRT,FBAR,VECP,XVEC,XBAR,CBAR,
+     $    VLAMBR,VECSBR,IFCALL,IERPLT)
+C
+C ======================================================================
+C     PLTLYN===>pltlyn   J.T. BETTS
+C ======================================================================
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      SAVE
+C
+C         PURPOSE:  CREATE A FILE TO PERMIT PLOTTING QUANTITIES
+C                   DURING THE LINE SEARCH
+C
+C         INPUT/OUTPUT:
+C
+C           NDIM    NUMBER OF VARIABLES
+C           MCON    NUMBER OF CONSTRAINTS
+C           ALFA    OUTPUT SCALAR STEP LENGTH
+C                   THE FOLLOWING QUANTITIES EVALUATED AT ALFA:
+C           FBRMRT  MERIT FUNCTION 
+C           FBAR    OBJECTIVE FUNCTION 
+C           VECP    SEARCH DIRECTION (NDIM)
+C           XVEC    VARIABLES AT ALFA = 0 (NDIM)
+C           XBAR    VARIABLES  (NDIM)
+C           CBAR    CONSTRAINTS  (MCON)
+C           VLAMBR  CONSTRAINT MULTIPLIERS (MCON)
+C           VECSBR  SLACK VARIABLES (MCON+NDIM)
+C           IFCALL  REVERSE COMMUNICATION FLAG
+C           IERPLT  INTEGER ERROR RETURN FLAG
+C                   = 0     NORMAL RETURN WITH PLOT FILE WRITTEN
+C                   .LT. 0  INPUT ERROR 
+C
+      DIMENSION VECP(NDIM),XVEC(NDIM),XBAR(NDIM),CBAR(*),VLAMBR(*),
+     $    VECSBR(MCON+NDIM)
+      PARAMETER (ZERO=0.0D0,ONE=1.0D0)
+C-------------------------------------------------------------
+      INCLUDE '../commons/NLPSPR.CMN'
+C-------------------------------------------------------------
+C
+      IF(IFCALL.EQ.1) GO TO 501
+C
+      OPEN(LYNOUT,FILE='LYNPLT.FIL',STATUS='UNKNOWN')
+C
+C         CHECK THE INPUT
+C
+      IERPLT = 0
+C
+      IF(ALFLWR.GT.ALFUPR) IERPLT = -1
+C
+      IF(LYNPNT.LE.0) IERPLT = -2
+C
+      IF(LYNFNC.LT.0.OR.LYNFNC.GT.MCON) IERPLT = -3
+C
+      IF(LYNVAR.LT.0.OR.LYNVAR.GT.NDIM) IERPLT = -4
+C
+C         INITIALIZE THE PLOT LOOP
+C
+      DELALF = (ALFUPR-ALFLWR)/DBLE(LYNPNT-1)
+      ALFA = ALFLWR - DELALF
+      IPNT = 0
+      IF(LYNVAR.EQ.0) THEN
+        IF(LYNFNC.EQ.0) THEN
+          NCOLS = 3
+        ELSE
+          NCOLS = 4
+        ENDIF
+      ELSE
+        IF(LYNFNC.EQ.0) THEN
+          NCOLS = 5
+        ELSE
+          NCOLS = 6
+        ENDIF
+      ENDIF
+C
+      WRITE(LYNOUT,1002) LYNPNT,NCOLS,LYNVAR,LYNFNC
+C
+ 110  CONTINUE
+C
+C         BEGINNING OF THE PLOT LOOP
+C
+      IPNT = IPNT + 1
+C
+C         INCREMENT STEPLENGTH
+C
+      ALFA = ALFA + DELALF
+      IFCALL = 1
+      RETURN
+ 501  CONTINUE
+C
+C         FUNCTIONS HAVE BEEN EVALUATED
+C
+      IFCALL = 0
+C
+C         CHECK LYNFNC AND LYNVAR TO DEFINE OUTPUT QUANTITIES
+C
+      IF(LYNVAR.EQ.0) THEN
+        IF(LYNFNC.EQ.0) THEN
+          WRITE(LYNOUT,1001) ALFA,FBRMRT,FBAR
+        ELSE
+          WRITE(LYNOUT,1001) ALFA,CBAR(LYNFNC),VLAMBR(LYNFNC),
+     $                       VECSBR(LYNFNC)
+        ENDIF
+      ELSE
+        IF(LYNFNC.EQ.0) THEN
+          WRITE(LYNOUT,1001) ALFA,XBAR(LYNVAR),VECSBR(MCON+LYNVAR),
+     $                       FBRMRT,FBAR
+        ELSE
+          WRITE(LYNOUT,1001) ALFA,XBAR(LYNVAR),VECSBR(MCON+LYNVAR),
+     $                   CBAR(LYNFNC),VLAMBR(LYNFNC),VECSBR(LYNFNC)
+        ENDIF
+      ENDIF
+C
+      IF(IPNT.LT.LYNPNT) GO TO 110
+C
+C         WRITE OUT SEARCH DIRECTION VECTOR AND REFERENCE POINT
+C
+      WRITE(LYNOUT,1002) NDIM
+      WRITE(LYNOUT,1003) (XVEC(I),I=1,NDIM)
+      WRITE(LYNOUT,1003) (VECP(I),I=1,NDIM)
+C
+ 1001 FORMAT(5X,6E20.12)
+ 1002 FORMAT(5X,4I10)
+ 1003 FORMAT(5X,4E20.12)
+C
+      RETURN
+      END

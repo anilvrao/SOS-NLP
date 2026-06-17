@@ -1,0 +1,35 @@
+      SUBROUTINE REFITR ( RHS, SOLUTN, LDRHS, RWORK, LNRWRK, NEEDS, 
+     $    IERROR )
+C
+C ======================================================================
+C     REFITR===>refitr   J.T. BETTS
+C ======================================================================
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C         PURPOSE:  FACTOR AND SOLVE A LINEAR SYSTEM
+C
+C         ARGUMENTS:
+C
+C           RHS     RIGHT HAND SIDE ARRAY
+C           SOLUTN  THE SOLUTION VECTOR
+C           LDRHS   LEADING DIMENSION OF RIGHT HAND SIDE ARRAY
+C           RWORK   REAL WORK ARRAY
+C           LNRWRK  INTEGER LENGTH OF RWORK
+C           NEEDS   STORAGE REQUIRED EITHER LNIWRK OR LNRWRK IS TOO SMALL
+C           IERROR  INTEGER ERROR FLAG
+C
+      DIMENSION RHS(LDRHS),SOLUTN(LDRHS),RWORK(LNRWRK)
+C
+      IERROR = 0
+C
+C         SAVE THE RHS TEMPORARILY IN SOLUTN
+C
+      SOLUTN(1:LDRHS) = RHS(1:LDRHS)
+C
+C         SOLVE THE SYSTEM 
+C     
+      CALL XDSLSL ( 1, SOLUTN, LDRHS, RWORK, LNRWRK, NEEDS, IERROR )
+C
+      RETURN
+      END

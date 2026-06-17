@@ -1,0 +1,46 @@
+C-------------------------------------------------------------------------------
+C WARNING: If this common block is changed in any manner, check
+C subroutines RTSNLP and OPSHUN to see if changes are needed.
+C
+C         NLPSPR REAL VARIABLE COMMON
+C
+      COMMON /NPSPRR/ ALFLWR, ALFUPR, CONTOL, EPSRLF, OBJTOL, 
+     $    PGDTOL, SLPTOL, SFZTOL, TOLFIL, TOLKTC, TOLPVT
+      DOUBLE PRECISION  ALFLWR, ALFUPR, CONTOL, EPSRLF, OBJTOL, 
+     $    PGDTOL, SLPTOL, SFZTOL, TOLFIL, TOLKTC, TOLPVT
+C
+C         NLPSPR INTEGER VARIABLE COMMON
+C
+      COMMON /NPSPRI/ 
+     $    INNPER, IHESHN, IOFLAG, IOFLIN, IOFMFR, 
+     $    IOFPAT, IOFSHR, IOFSRC,         IPUDRF,    
+     $    IPUFZF, IPUMF1, IPUMF2, IPUMF3, IPUMF4,    
+     $    IPUMF5, IPUMF6, IPUMF7, IPUNLP, IPUSTF, 
+     $    IRELAX, ITDRQP, ITFZQP, IT1MAX, JACPRM,   
+     $    LYNFNC, LYNOUT, LYNPLT, LYNPNT, LYNVAR, 
+     $    MAXLYN, MAXNFE, MNSAME, NEWTON, NITMAX,
+     $    NITMIN, NORMAL
+      INTEGER
+     $    INNPER, IHESHN, IOFLAG, IOFLIN, IOFMFR, 
+     $    IOFPAT, IOFSHR, IOFSRC,         IPUDRF,    
+     $    IPUFZF, IPUMF1, IPUMF2, IPUMF3, IPUMF4,    
+     $    IPUMF5, IPUMF6, IPUMF7, IPUNLP, IPUSTF, 
+     $    IRELAX, ITDRQP, ITFZQP, IT1MAX, JACPRM,   
+     $    LYNFNC, LYNOUT, LYNPLT, LYNPNT, LYNVAR, 
+     $    MAXLYN, MAXNFE, MNSAME, NEWTON, NITMAX,
+     $    NITMIN, NORMAL
+C
+C         NLPSPR CHARACTER VARIABLE COMMONS
+C
+C CHARACTER declarations moved above COMMON to avoid confusing
+C the Fortran to C converter
+C
+      CHARACTER(LEN=6) ALGOPT, KTOPTN, QPOPTN
+      CHARACTER(LEN=6) ALGNAM
+      COMMON /NPSPRC/ ALGOPT, KTOPTN, QPOPTN 
+      COMMON /NPSALG/ ALGNAM
+C
+C         NOTE SUBROUTINE OPSHUN WHICH USES THESE COMMONS
+C         MUST HAVE CONSISTENT LENGTHS
+C
+C-------------------------------------------------------------------------------

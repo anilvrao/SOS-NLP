@@ -1,0 +1,16 @@
+C     ------------------------------------------------------------------
+C
+C             Coefficients in Butcher block for Lobatto IIIA
+C             discretization methods.
+C
+C          rhoLB    Interior interval collocation time fractions
+C
+      COMMON /LB3Acm/ rhoLB(1:5,2:5),betaLB(1:5,2:5),
+     &                gamaLB(1:4,1:4,2:5),thtaLB(1:4,1:4,2:5),
+     &                alfaLB(2:4,1:5,2:5)
+C
+      DOUBLE PRECISION
+     &   rhoLB,  betaLB,  gamaLB,  thtaLB,  alfaLB
+C
+C     ------------------------------------------------------------------
+

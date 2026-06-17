@@ -1,0 +1,1999 @@
+
+      SUBROUTINE NLPSPR(      GMAT     ,CLWR     ,CUPR     ,CBAR 
+     $    ,DELF   ,ISTATC    ,ISTATV   ,XBAR     ,XLWR     ,XUPR    
+     $    ,FBAR   ,MCON      ,MAXCON   ,NDIM     ,NONZH    ,NONZG  
+     $    ,IRVCOM ,IREVRS    ,IFERR    ,IERNLP   
+     $    ,ISCRTC ,LNISCR    ,CVEC     ,COLD     ,PGRAD    ,MAXRES   
+     $    ,RESVEC ,NRES      ,RMAT     ,IROWR    ,JSTRR    ,NONZR     
+     $    ,HMAT   ,IROWH     ,JSTRH    ,SVEC     ,XVEC     ,VECLAM 
+     $    ,VECNU  ,YVEC      ,YBAR     ,MINOPT   ,IROWG    ,JSTRG   
+     $    ,IPRMC  ,MPRMC     ,ISTATO   ,WORK     ,NWORK    ,IWORK      
+     $    ,NIWORK ,NEEDED    ,PRMUTE) 
+C
+C ======================================================================
+C     NLPSPR===>nlpspr   J.T. BETTS
+C ======================================================================
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      SAVE
+C
+C         PURPOSE:  COMPUTE THE VALUES OF THE NDIM VARIABLES X WHICH
+C
+C                             MINIMIZE F(X)
+C
+C                   SUBJECT TO THE EQUALITY CONSTRAINTS
+C
+C                             CVEC(X) = CLWR = CUPR
+C
+C                   FOR I = 1,2,...MEQUAL AND THE INEQUALITY CONSTRAINTS
+C
+C                             CLWR .LE. CVEC(X) .LE. CUPR  
+C
+C                   FOR I = (MEQUAL+1)...MCON.  NOTE ALL INFORMATION IS
+C                   ORDERED SUCH THAT THE EQUALITIES ARE FIRST -- AND ALL
+C                   OUTPUT PRODUCED REFLECTS THIS ORDERING.  BOUNDS ON 
+C                   THE VARIABLES ARE OF THE FORM
+C
+C                            XLWR .LE. X .LE. XUPR
+C
+C
+C         INPUT:
+C
+C         **ESSENTIAL INPUT--INFORMATION WHICH IS ESSENTIAL TO THE
+C                            DEFINITION OF A NONLINEAR PROGRAMMING
+C                            PROBLEM AND IS NOT ALGORITHM DEPENDENT.
+C                            NOTE THE FUNCTION AND GRADIENT INFORMATION
+C                            IS EVALUATED AT THE CURRENT POINT...ON THE
+C                            INITIAL ENTRY THE POINT IS XVEC;  THEREAFTER
+C                            (WHEN IREVRS(1) IS 1) INFORMATION IS GIVEN
+C                            AT XBAR.   WHEN THE ALGORITHM TERMINATES
+C                            ALL INFORMATION IS EVALUATED AT XVEC.
+C
+C         --ARRAYS
+C
+C            GMAT   JACOBIAN MATRIX OF CONSTRAINTS (MCON X NDIM) STORED IN AN
+C                   ARRAY OF LENGTH (NONZG)
+C            CLWR   CONSTRAINT LOWER BOUNDS (MAXCON)
+C            CUPR   CONSTRAINT UPPER BOUNDS (MAXCON)
+C            CBAR   VECTOR OF CONSTRAINTS (MAXCON)
+C            DELF   GRADIENT VECTOR OF F (NDIM)
+C            ISTATC CONSTRAINT TYPE ARRAY (MAXCON)
+C                   = 0       INACTIVE INEQUALITY
+C                   = 1       INEQUALITY FIXED ON LOWER BOUND
+C                   = 2       INEQUALITY FIXED ON UPPER BOUND
+C                   = 3       EQUALITY
+C                   = 4       IGNORED INEQUALITY (NOT USED IN THIS ROUTINE)
+C            ISTATV VARIABLE STATUS ARRAY (NDIM)
+C                   = 0       FREE VARIABLE
+C                   = 1       FIXED ON UPPER BOUND
+C                   = 2       FIXED ON LOWER BOUND
+C                   = 3       FIXED PERMANENTLY
+C            XBAR   INDEPENDENT VARIABLES (NDIM)
+C            XLWR   VARIABLE LOWER BOUNDS (NDIM)
+C            XUPR   VARIABLE UPPER BOUNDS (NDIM)
+C
+C         --REAL QUANTITIES
+C
+C            FBAR   OBJECTIVE FUNCTION
+C
+C         --INTEGER QUANTITIES
+C
+C            MCON   NUMBER OF CONSTRAINTS
+C            MAXCON MAX DIMENSION OF CONSTRAINT ARRAYS
+C            MAXRES MAX DIMENSION OF RESVEC
+C            NDIM   NUMBER OF INDEPENDENT VARIABLES
+C            NRES   NUMBER OF RESIDUALS
+C            NONZH  NUMBER OF HESSIAN NONZEROS
+C            NONZG  NUMBER OF JACOBIAN NONZEROS
+C            NONZR  NUMBER OF RESIDUAL JACOBIAN NONZEROS
+C            IREVRS (1)  =1 WHEN EVALUATING FUNCTIONS
+C                   (2)  =1 , OR 2 WHEN EVALUATING GRADIENTS
+C                   (3)   HESSIAN CALL FLAG--
+C                        =2 WHEN HESSIAN IS REQUESTED
+C                        =1 WHEN HESSIAN DIAGONAL IS REQUESTED
+C                        =0 OTHERWISE.
+C                   (4)  =1 FOR SYSTEM PRINT
+C            IFERR  = 0 WHEN FUNCTION IS EVALUATED
+C                   = 1 WHEN FUNCTION EVALUATION IS IMPOSSIBLE
+C                   = -100 WHEN MAXIMUM NUMBER OF EVALUATIONS EXCEEDED
+C
+C         **ANCILLIARY INPUT--INFORMATION WHICH IS ALGORITHM DEPENDENT.
+C                             IF INITIALIZATION IS REQUIRED THE SYMBOL
+C                             IS PRECEDED BY A DOT (.).  OTHERWISE ONLY
+C                             STORAGE ALLOCATION IS NECESSARY.
+C
+C         --ARRAYS
+C
+C            CVEC   OLD VALUES OF CONSTRAINTS (MAXCON)
+C            COLD   OLD VALUES OF CONSTRAINTS (MAXCON)
+C            PGRAD  PROJECTED GRADIENT OF F (NDIM)
+C            RESVEC RESIDUAL VECTOR (MAXRES)
+C            RMAT   RESIDUAL JACOBIAN MATRIX STORED AS AN ARRAY (NONZR)
+C            IROWR  ROW INDEX OF NONZEROS IN RMAT (NONZR)
+C            JSTRR  COLUMN START INDEX (NDIM+1)
+C            HMAT   FINITE DIFFERENCE HESSIAN (NONZH)
+C            IROWH  INTEGER ROW INDEX VECTOR FOR LOWER TRIANGLE OF HMAT (NONZH)
+C            JSTRH  INTEGER COLUMN START VECTOR (NDIM+1)
+C                   NONZH  = JSTRH(NDIM+1)-1
+C            SVEC   SEARCH DIRECTION VECTOR (MAXCON+NDIM+1)
+C            XVEC   OLD ESTIMATE OF XVEC (NDIM)
+C            VECLAM LAGRANGE MULTIPLIERS (MAXCON)
+C            VECNU  BOUND MULTIPLIERS (NDIM)
+C            YVEC   INNER LOOP ITERATION VARIABLES (NDIM)
+C            YBAR   INNER LOOP ITERATION VARIABLES (NDIM)
+C
+C         --INTEGER QUANTITIES
+C
+C           .MINOPT ALGORITHM MINIMIZATION OPTION
+C                   = 1   FEAS. PT. THEN OPT.
+C                   = 2   FEAS. PT. THEN OPT. WITH EQ. BINDING
+C                   = 3   OPTIMIZE FROM INITIAL PT.
+C                   = 4   FEAS. PT. ONLY
+C                   = 5   LINEAR LEAST SQUARES
+C
+C           IROWG   INTEGER NONZERO ROW INDEX FOR GMAT (NONZG)
+C           JSTRG   INTEGER NONZERO COLUMN INDEX FOR GMAT (NDIM+1)
+C                   NONZG = JSTRG(NDIM+1)-1
+C           IPRMC   EXTERNAL TO INTERNAL CONSTRAINT ORDER PERMUTATION (MPRMC)
+C           MPRMC   LENGTH OF IPRMC
+C           ISTATO  OLD VARIABLE/CONSTRAINT STATUS ARRAY (NDIM+MAXCON)
+C           WORK    WORK ARRAY--USED BY PRJGRD,EQCMIN
+C                   AND SRCHFZ (NWORK)
+C           NWORK   LENGTH OF WORK (CHECKED BELOW)
+C           IWORK   INTEGER WORK ARRAY--USED BY PRMMAT,NLPSPR,
+C                   AND SRCHFZ (NIWORK)
+C           NIWORK  LENGTH OF IWORK (CHECKED BELOW)
+C           NEEDED  STORAGE REQUIRED WHEN NWORK OR NIWORK IS TOO SMALL
+C
+C
+C         OUTPUT:
+C
+C            XVEC   FINAL VALUES OF THE INDEPENDENT VARIABLES
+C            IRVCOM = 0 WHEN NONLINEAR PROGRAMMING ALGORITHM HAS
+C                   FINISHED PROCESSING
+C                   = 1 WHEN RETURNING FOR AN EVALUATION 
+C            IERNLP = 0 WHEN XVEC IS THE SOLUTION TO THE STATED PROBLEM;
+C                   IF IERNLP .NE. O AND IRVCOM = 0 THE ALGORITHM
+C                   TERMINATED ABNORMALLY
+C
+C         INTERNAL: LOCAL VARIABLES NEEDED FROM ONE ITERATION TO THE NEXT
+C                   ARE SAVED USING THE "SAVE" STATEMENT ABOVE
+C
+      LOGICAL   REFPNT ,SRCPNT ,EXTRAP ,PRMUTE      
+C
+C-------------------------------------------------------------
+      INCLUDE '../commons/NLPSPR.CMN'
+      INCLUDE '../commons/BARNLP.CMN'
+C-------------------------------------------------------------
+C
+      COMMON /STATIS/ INSTAT(30),RLSTAT(20)
+      COMMON /KONSTN/ 
+     *  ZEROMN  ,ZEROOT  ,BIGNUM  ,BGROOT  ,BIGBND  ,BIGCND
+C
+      PARAMETER (ZERO=0.0D0,ONE=1.0D0,TWO=2.0D0,
+     $    ONEEP1=1.0D1,ONEEP2=1.0D2,ONEEP3=1.0D3,ONEEP5=1.0D5,
+     $    ONEEM1=1.0D-1,ONEEM2=1.0D-2,ONEEM3=1.0D-3,ONEEM5=1.0D-5,
+     $    POINT2=2.0D-1,POINT5=5.0D-1,POINT8=8.0D-1,POINT9=9.0D-1,
+     $    THREE=3.0D0)
+      DIMENSION GMAT(NONZG),CBAR(MAXCON),DELF(NDIM),ISTATC(MAXCON),
+     $    XBAR(NDIM),ISCRTC(LNISCR),CVEC(MAXCON),
+     $    COLD(MAXCON),PGRAD(NDIM),RESVEC(MAXRES),RMAT(NONZR),
+     $    IROWR(NONZR),JSTRR(NDIM+1),HMAT(NONZH),IROWH(NONZH),
+     $    JSTRH(NDIM+1),SVEC(MAXCON+NDIM+1),XVEC(NDIM),
+     $    VECLAM(MAXCON),VECNU(NDIM),YVEC(NDIM),YBAR(NDIM),
+     $    IROWG(NONZG),JSTRG(NDIM+1),IPRMC(*),
+     $    WORK(NWORK),IWORK(NIWORK),CLWR(MAXCON),CUPR(MAXCON),
+     $    XLWR(NDIM),XUPR(NDIM),ISTATV(NDIM),ISTATO(NDIM+MAXCON)
+      DIMENSION IREVRS(5)
+C
+C ======================================================================
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: CBST 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: DVEC 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: EWRK 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: FLTR 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: PNVC 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: PWRK 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: TVEC 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: UVEC 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: VCMU 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: VCNU 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: VCSB 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: VCXI 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: VECQ 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: VEKS 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: VLMB 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: VNBR 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: WMLT 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: XBST 
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:) :: XOLD 
+C ======================================================================
+C
+      COMMON /DUALGS/ INDUAL
+C
+      LOGICAL FEEZ
+      LOGICAL STOPIT
+      LOGICAL PUNT
+      LOGICAL FILTUR,ACCEPT
+C
+C         REVERSE COMMUNICATION RETURN BRANCH POINT -- BY CONVENTION ALL 
+C         RETURN POINTS ARE NUMBERED BEGINNING WITH 501
+C
+      IF (IMAX(4,IREVRS,1).GE.1) THEN
+        SELECT CASE (IFESR)
+          CASE(1)
+            GO TO 501
+          CASE(2)
+            GO TO 502
+          CASE(3)
+            GO TO 503
+          CASE(4)
+            GO TO 504
+          CASE(5)
+            GO TO 505
+          CASE(6)
+            GO TO 506
+          CASE(7)
+            GO TO 507
+        END SELECT
+      ENDIF
+C
+C ----------------------------------------------------------------------
+C
+C         ALGORITHM INITIALIZATION
+C
+C         ---INTEGER VARIABLES
+C
+      STOPIT = .FALSE.
+      IFUNRU = 0
+      ITERM = 0
+      ISTERM = 0
+      ICTERM = 0
+C
+C         INITIALIZE QP TO A COLD START
+C
+      ISTART = 1
+C
+C         DEFINE DIMENSION PARAMETERS
+C
+      MDIM = MAX(MCON,1)
+C
+C         ---REAL VARIABLES
+C
+      FMIN = BIGNUM
+      FNOM = FBAR
+C
+C         ---LOGICAL VARIABLES
+C
+      PUNT = .FALSE.
+      FILTUR = BIGCON.GT.ZERO.AND.MINOPT.NE.2
+C
+C         CHECK IF INITIAL POINT IS FEASIBLE (AND CONSISTENT) 
+C         WITH THE INPUT ACTIVE SET STATUS
+C
+      FEEZ = .TRUE.
+      DO 110 I = 1,MCON
+        IF(ISTATC(I).EQ.3) THEN
+C
+C           EQUALITY CONSTRAINT
+C
+          IF(ABS(CVEC(I)-CLWR(I)).GT.CONTOL) FEEZ = .FALSE.
+C
+        ELSEIF(ISTATC(I).EQ.0) THEN
+C
+C           INACTIVE INEQUALITY
+C
+          IF(CVEC(I).GT.CUPR(I)+CONTOL) FEEZ = .FALSE.
+          IF(CVEC(I).LT.CLWR(I)-CONTOL) FEEZ = .FALSE.
+C
+        ELSEIF(ISTATC(I).EQ.1) THEN
+C
+C           ACTIVE INEQUALITY FIXED ON LOWER BOUND
+C
+          IF(ABS(CVEC(I)-CLWR(I)).GT.CONTOL) FEEZ = .FALSE.
+C
+        ELSE
+C
+C           ACTIVE INEQUALITY FIXED ON UPPER BOUND
+C
+          IF(ABS(CVEC(I)-CUPR(I)).GT.CONTOL) FEEZ = .FALSE.
+C
+        ENDIF
+ 110  CONTINUE
+C
+      DO 120 I = 1,NDIM
+C
+        IF(ISTATV(I).EQ.1) THEN
+C
+C           VARIABLE FIXED ON LOWER BOUND
+C
+          IF(ABS(XVEC(I)-XLWR(I)).GT.CONTOL) FEEZ = .FALSE.
+C
+        ELSEIF(ISTATV(I).GE.2) THEN
+C
+C           VARIABLE FIXED ON UPPER BOUND OR PERMANENTLY FIXED
+C
+          IF(ABS(XVEC(I)-XUPR(I)).GT.CONTOL) FEEZ = .FALSE.
+C
+        ELSEIF(ISTATV(I).EQ.0) THEN
+C
+C           FREE VARIABLE
+C
+          IF(XVEC(I).GT.XUPR(I)+CONTOL) FEEZ = .FALSE.
+          IF(XVEC(I).LT.XLWR(I)-CONTOL) FEEZ = .FALSE.
+C
+        ENDIF
+C
+ 120  CONTINUE
+C
+C         CONSTRUCT INFORMATION FOR INITIAL ACTIVE SET
+C
+      MEQUAL = 0
+      MACTIV = 0
+      DO I=1,MCON
+        IF (ISTATC(I).EQ.1 .OR. ISTATC(I).EQ.2) THEN
+          MACTIV = MACTIV + 1
+        ELSEIF (ISTATC(I).EQ.3) THEN
+          MEQUAL = MEQUAL + 1
+        ENDIF
+      ENDDO
+      MACTIV = MACTIV + MEQUAL
+      DO I=1,NDIM
+        IF (ISTATV(I).NE.0) MACTIV = MACTIV + 1
+      ENDDO
+C
+      IF(FILTUR) THEN
+        MXFLTR = MAX(100,2*NITMAX)
+        LENFLT = 3*MXFLTR
+      ELSE
+        LENFLT = 1
+        MXFLTR = 1
+      ENDIF
+c
+C ======================================================================
+c
+      MSIZ = MAX(1,MCON)
+      MCPN = MCON+NDIM
+      lnewrk = max(2*ndim,mcon,mprmc)
+c
+      ALLOCATE(CBST(1:MSIZ))
+      ALLOCATE(DVEC(1:NDIM))
+      ALLOCATE(EWRK(1:lnewrk))
+      ALLOCATE(FLTR(1:LENFLT))
+      ALLOCATE(PNVC(1:MCPN))
+      ALLOCATE(PWRK(1:4*NDIM))
+      ALLOCATE(TVEC(1:NDIM))
+      ALLOCATE(UVEC(1:NDIM))
+      ALLOCATE(VCMU(1:MSIZ))
+      ALLOCATE(VCNU(1:NDIM))
+      ALLOCATE(VCSB(1:MCPN))
+      ALLOCATE(VCXI(1:MCPN))
+      ALLOCATE(VECQ(1:MCPN))
+      ALLOCATE(VEKS(1:MCPN))
+      ALLOCATE(VLMB(1:MSIZ))
+      ALLOCATE(VNBR(1:NDIM))
+      ALLOCATE(WMLT(1:MSIZ))
+      ALLOCATE(XBST(1:NDIM))
+      ALLOCATE(XOLD(1:NDIM))
+c
+c ======================================================================
+c
+C         DEFINE MULTIFRONTAL WORK ARRAY POINTERS
+C         TEMPORARILY SPLIT IN TWO PARTS FOR MINOPT=2
+C
+      IF(MINOPT.EQ.2) THEN
+C
+C         REAL ARRAY
+C
+        LNRWPG = NWORK/2
+C         --- REAL WORK ARRAY FOR EQCMIN
+        LCRWRK = LNRWPG + 1
+        LNRWRK = NWORK - LNRWPG 
+C
+C         INTEGER ARRAY
+C
+        LENIPG = NIWORK/2
+C         --- INTEGER WORK ARRAY FOR EQCMIN
+        LCIWRK = LENIPG + 1
+        LNIWRK = NIWORK - LENIPG 
+C         --- INTEGER WORK ARRAY PARTITIONS FOR CONELM AND PRJGRD
+        LCITMP = 1
+        LCIFXV = LCITMP + MCON
+        LCIFRV = LCIFXV + NDIM
+        LCIWPG = LCIFRV + MCON
+        LNIWPG = LENIPG - LCIWPG + 1
+C
+      ELSE
+        LNRWRK = NWORK
+        LCRWRK = 1
+        LNIWRK = NIWORK 
+        LCIWRK = 1
+C
+      ENDIF
+C
+C         INITIALIZE BEST POINT
+C
+      FBEST = BIGNUM
+      DO KK = 0,NDIM-1
+        xbst(kk+1) = XVEC(KK+1)
+      ENDDO
+      DO KK = 0,MCON-1
+        cbst(KK+1) = CVEC(KK+1)
+      ENDDO
+C
+      CALL BESTPT(XVEC,XLWR,XUPR,NDIM,CVEC,CLWR,CUPR,
+     $    MCON,FNOM,XBST,CBST,FBEST) 
+C
+C         INITIALIZE LAGRANGE MULTIPLIER VECTOR
+C
+      IF(INDUAL.LE.0) THEN
+        IF(MINOPT.LE.3.OR.MINOPT.EQ.5) THEN
+          VECLAM(1:MCON) = ZERO
+          VECNU(1:NDIM) = ZERO
+        ELSE
+          VECLAM(1:MCON) = ONE
+          VECNU(1:NDIM) = ONE
+        ENDIF
+      ENDIF
+C
+      IF(FILTUR) THEN
+C
+C         INITIALIZE THE SOUTHEAST CORNER FILTER VALUE (CMAX)
+C
+        CALL CONERR(CLWR,CUPR,CVEC,XLWR,XUPR,XVEC,MCON,MDIM,NDIM,
+     $    ERBEQL,ERBINQ,ERREQL,ERRINQ,BIGFLT)
+C
+        IF(MINOPT.LE.2) THEN
+          CMAX = MAX(BIGCON,CONTOL)
+        ELSE
+          CMAX = MAX(BIGCON,BIGFLT+CONTOL)
+        ENDIF
+C
+C         INITIALIZE THE FILTER
+C
+        LNFLTR = 0
+        CALL FLTRQP(CLWR,CUPR,CVEC,VECLAM,VECNU,XLWR,XUPR,XVEC,
+     $    FNOM,CMAX,MCON,MDIM,NDIM,FLTR,
+     $    LNFLTR,MXFLTR,ISCRTC,ACCEPT)
+C
+      ENDIF
+C
+C         FOR LINEAR LEAST SQUARES PROBLEMS BEGIN PHASE 2
+C
+      IF(MINOPT.EQ.5) GO TO 130
+C
+C         IF THERE ARE CONSTRAINTS, THEY ARE NOT FEASIBLE, AND THEY
+C         SHOULD BE FEASIBLE THEN EXECUTE PHASE 1; OTHERWISE BEGIN
+C         PHASE 2
+C
+      IF(MCON.NE.0) THEN
+C
+C         THERE ARE CONSTRAINTS
+C
+        IF(.NOT.FEEZ.AND.(MINOPT.LT.3.OR.MINOPT.GE.4)) GO TO 310
+        IF(FEEZ.AND.MINOPT.GE.4) GO TO 310
+C
+      ELSE
+C
+C         THERE ARE NO CONSTRAINTS
+C
+        IF(MINOPT.GE.4) GO TO 310
+C
+      ENDIF
+C
+C ----------------------------------------------------------------------
+C ----------------------------------------------------------------------
+C
+ 130  CONTINUE
+C
+C ----------------------------------------------------------------------
+C ----------------------------------------------------------------------
+C ----------------  CONSTRAINED OPTIMIZATION BLOCK  --------------------
+C ----------------------------------------------------------------------
+C ----------------------------------------------------------------------
+C
+C         PROBLEM DEFINITION
+C
+      IF(ITERM.NE.0) THEN
+C
+        IF(ITERM.EQ.1.OR.ITERM.EQ.2) THEN
+C
+          IF(ITERM.EQ.1) THEN
+C
+C           NORMAL TERMINATION FROM EQUALITY CONSTRAINED MINIMIZATION,
+C           AND A NEW ACTIVE SET IS NOT NEEDED (QP SET IS CORRECT)--
+C           TERMINATE THE ALGORITHM NORMALLY
+C
+            IERNLP = 0
+            STOPIT = .TRUE.
+C
+          ELSEIF(ITERM.EQ.2) THEN
+C
+C           WEAK SOLUTION -- OPTIMALITY CONDITIONS SATISFIED, BUT
+C           MULTIPLIERS ARE NEAR ZERO
+C
+            IERNLP = +101
+            STOPIT = .TRUE.
+C
+          ENDIF
+C
+        ELSE
+C
+          IF(ITERM.EQ.4) THEN
+C
+C           MAX NO. OF ITERATIONS IN EQCMIN
+C
+            IERNLP = +106
+            STOPIT = .TRUE.
+C
+          ELSEIF(ITERM.EQ.6) THEN
+C
+C           MAX NO. OF FUNCTION EVALUATIONS
+C
+            IERNLP = +104
+            STOPIT = .TRUE.
+C
+          ELSEIF(ITERM.EQ.-13) THEN
+C
+C           I/O ERROR (INSUFFICIENT DISK SPACE)
+C
+            IERNLP = -153
+            STOPIT = .TRUE.
+C
+          ELSEIF(ITERM.EQ.-14) THEN
+C
+C         ---user external kill
+C
+            IERNLP = -800
+            STOPIT = .TRUE.
+C
+          ELSEIF(ITERM.EQ.-6) THEN
+C
+C           SCHUR-QP FAILED WITH UNEXPECTED ERROR IN SRCHDR
+C
+            IERNLP = +114
+            STOPIT = .TRUE.
+C
+          ELSEIF(ITERM.EQ.-7) THEN
+C
+C           PRJGRD FAILED DURING CONSTRAINT ELIMINATION
+C
+            IERNLP = +111
+            STOPIT = .TRUE.
+C
+          ELSEIF(ITERM.EQ.7) THEN
+C
+C           DIRECTION DERIVATIVE IS POSITVE IN LINE SEARCH
+C
+            IERNLP = +116
+            STOPIT = .TRUE.
+C
+          ELSEIF(ITERM.EQ.-4) THEN
+C
+C           TEST FOR MAXIMUM NUMBER OF INTERVAL HALVES IN LINE SEARCH
+C
+            IERNLP = +109
+            IF(IOFLAG.GE.10) WRITE(IPUNLP,1014)
+            STOPIT = .TRUE.
+C
+          ELSEIF(ITERM.EQ.-1) THEN
+C
+C           TEST FOR LINEAR REDUCED OBJECTIVE FUNCTION
+C
+            IERNLP = +117
+            STOPIT = .TRUE.
+C
+          ELSEIF(ITERM.EQ.-11) THEN
+C
+C           STOP AFTER DIAGNOSTIC LINE SEARCH
+C
+            IERNLP = +119
+            STOPIT = .TRUE.
+C
+          ELSE
+            PRINT *,'EQCMIN ERROR RETURN--ITERM',ITERM
+            STOP
+          ENDIF
+C
+C           LOAD CURRENT BEST POINT INTO "SOLUTION"
+C
+          IF(FBEST.LT.BIGNUM) THEN
+            DO KK = 1,NDIM
+              XVEC(KK) = xbst(kk)
+              XBAR(KK) = XVEC(KK)
+            ENDDO
+            DO KK = 1,MCON
+              CVEC(KK) = cbst(kk)
+              CBAR(KK) = CVEC(KK)
+            ENDDO
+            FNOM = FBEST
+            FBAR = FBEST
+          ENDIF
+C
+        ENDIF
+C
+C         COMPUTE THE NUMBER OF ACTIVE CONSTRAINTS AT THE SOLUTION
+C         FOR OUTPUT. 
+C
+        MACTIV = 0
+        DO I=1,NDIM
+          IF (ISTATV(I).NE.0)  MACTIV = MACTIV + 1
+        ENDDO
+        DO I=1,MCON
+          IF (ISTATC(I).GE.1 .AND. ISTATC(I).LE.3)  MACTIV = MACTIV + 1
+        ENDDO
+C
+      ELSEIF(MCON.NE.0.AND.MINOPT.EQ.2) THEN
+C
+C         SPECIAL FOR SEARCH PROBLEMS
+C
+        MFIX = MEQUAL
+        DO I=1,NDIM
+          IF (ISTATV(I).EQ.3)  MFIX = MFIX + 1
+        ENDDO
+        IF(MFIX.EQ.NDIM) THEN
+          IERNLP = 0
+          STOPIT = .TRUE.
+        ENDIF
+C
+      ENDIF
+C
+C         SPECIFY INTEGER CONSTANTS FOR THIS ACTIVE SET
+C
+      NDOF = NDIM - MACTIV
+C
+C ----------------------------------------------------------------------
+C
+C     
+      IF(STOPIT) THEN
+C
+C         WRITE OUT CONVERGENCE INFORMATION
+C
+        IF(IOFLAG.GE.10) THEN
+          WRITE(IPUNLP,1012)
+          PWRK(1:NDIM) = XUPR(1:NDIM) - XLWR(1:NDIM)
+          ISTV0  = 0
+          ISTV1  = 0
+          ISTV2  = 0
+          ISTV3  = 0
+          NBNDVR = 0
+          DO I=1,NDIM
+            IF (ISTATV(I).EQ.0) THEN
+              ISTV0 = ISTV0 + 1
+            ELSEIF (ISTATV(I).EQ.1) THEN
+              ISTV1 = ISTV1 + 1
+            ELSEIF (ISTATV(I).EQ.2) THEN
+              ISTV2 = ISTV2 + 1
+            ELSEIF (ISTATV(I).EQ.3) THEN
+              ISTV3 = ISTV3 + 1
+            ENDIF
+            IF (PWRK(I).LT.TWO*BIGBND)  NBNDVR = NBNDVR + 1
+          ENDDO
+          ISTVN0 = NDIM - ISTV0
+          ISTVN3 = NDIM - ISTV3
+          ISTC0  = 0
+          ISTC1  = 0
+          ISTC2  = 0
+          ISTC3  = 0
+          DO I=1,MCON
+            IF (ISTATC(I).EQ.0) THEN
+              ISTC0 = ISTC0 + 1
+            ELSEIF (ISTATC(I).EQ.1) THEN
+              ISTC1 = ISTC1 + 1
+            ELSEIF (ISTATC(I).EQ.2) THEN
+              ISTC2 = ISTC2 + 1
+            ELSEIF (ISTATC(I).EQ.3) THEN
+              ISTC3 = ISTC3 + 1
+            ENDIF
+          ENDDO
+          ISTCN0 = MCON - ISTC0
+          ISTCN3 = MCON - ISTC3
+          MACTIV = ISTCN0 + ISTVN0
+          WRITE(IPUNLP,1008) MCON,NDIM,
+     $      ISTC3,ISTV3,
+     $      ISTCN3,NBNDVR,
+     $      ISTC0,ISTV0,
+     $      ISTC1,ISTV1,
+     $      ISTC2,ISTV2,
+     $      MACTIV,NDOF
+          IF(NRES.GT.0.AND.NRES.LT.NDOF) WRITE(IPUNLP,1021)
+          IF(MACTIV.LT.NDIM) THEN
+            WRITE(IPUNLP,1011) FMIN,DELFNM
+            CALL VECRYT(5,NDIM,PGRAD,IWORK,
+     $         'Projected Gradient Vector',IPUNLP)
+            IF(NRES.GT.0) CALL VECRYT(5,NRES,RESVEC,IWORK,
+     $         'Residuals',IPUNLP)
+          ENDIF
+          IF(MACTIV.GT.0.AND.MACTIV.LE.NDIM) THEN
+            IF(MPRMC.GT.0.AND.PRMUTE) 
+     $         CALL HDPRMY(VECLAM,MPRMC,IPRMC,IERP)
+            NMVAL = MIN(5,MCON)
+            CALL VECRYT(NMVAL,MPRMC,VECLAM,IWORK,
+     $         'Constraint Multipliers',IPUNLP)
+            CALL MAGRYT(NMVAL,MPRMC,VECLAM,EWRK,IWORK,
+     $         'Constraint Multiplier Magnitudes',IPUNLP)
+            IF(MPRMC.GT.0.AND.PRMUTE) 
+     $         CALL HDPRMX(VECLAM,MPRMC,IPRMC,IERP)
+            CALL VECRYT(5,NDIM,VECNU,IWORK,
+     $         'Bound Multipliers',IPUNLP)
+            CALL MAGRYT(5,NDIM,VECNU,EWRK,IWORK,
+     $         'Bound Multiplier Magnitudes',IPUNLP)
+          ENDIF
+          WRITE(IPUNLP,1001)
+        ENDIF
+C
+C         IF STOPIT IS TRUE TERMINATE ALGORITHM
+C
+        GO TO 350
+C
+      ENDIF
+C
+      IF(INDUAL.LE.0) THEN
+C
+C         COMPUTE LAGRANGE MULTIPLIERS AND PROJECTED GRADIENT.
+C         MULTIPLIER VALUES ARE USED TO DEFINE THE HESSIAN AT THE 
+C         INITIAL POINT
+C 
+        IF(MINOPT.EQ.2) THEN
+C
+C         SET NCALPG TO PERFORM SYMBOLIC AND NUMERIC FACTORIZATIONS
+C         FOLLOWED BY RHS SOLVE
+C
+          NCALPG = 1
+C
+          CALL PRJGRD(CVEC,DELF,GMAT,IROWG,JSTRG,NONZG,
+     $      ISTATC,ISTATV,PWRK,WORK,LNRWPG,EWRK,
+     $      IWORK(LCIWPG),LNIWPG,NEEDED,MCON,MEQUAL,NDIM,NCALPG,PGRAD,
+     $      VECLAM,VCNU,IWORK(LCITMP),IWORK(LCIFXV),
+     $      IWORK(LCIFRV),DELFNM,PGNORM,IOFLAG,IPUNLP,IREDER)
+C
+C         IF PROJECTED GRADIENT CALCULATION FAILED TERMINATE.
+C
+          IF(IREDER.NE.0) THEN
+            IERNLP = +111
+C         Real work array too small
+            IF(NEEDED.GT.LNRWPG) THEN
+              NEEDED = 2*NEEDED
+              IERNLP = -131
+            ENDIF
+            GO TO 350
+          ENDIF
+C
+C         LOAD FIRST ORDER VARIABLE MULTIPLIERS INTO VECNU
+C
+          DO KK = 1,NDIM
+            SVEC(KK) = ONE
+            VECNU(KK) = vcnu(kk)
+          ENDDO
+C
+        ELSEIF(MINOPT.EQ.1.OR.MINOPT.EQ.3) THEN
+C
+C         COMPUTE QP MULTIPLIERS USING IDENTITY HESSIAN.  THESE 
+C         FIRST ORDER ESTIMATES ARE THEN USED TO CONSTRUCT THE 
+C         FINITE DIFFERENCE HESSIAN AT THE SAME POINT
+C
+          DO KK = 1,NDIM
+            ewrk(kk) = DELF(KK)
+          ENDDO
+C
+          IF(QPOPTN.EQ.'SPARSE') ISTART = 1
+          CALL QPSTRT(MCON,MEQUAL,NDIM,GMAT,IROWG,JSTRG,NONZG,
+     $      EWRK,CLWR,CUPR,CVEC,ISTATC,ISTATV,XVEC,XLWR,
+     $      XUPR,WORK,LNRWRK,IWORK,NIWORK,NEEDED,IPUNLP,IOFLAG,ISTART,
+     $      SVEC,VECLAM,VCNU,CNDNUM,IERQPS)
+C
+          IF(IERQPS.NE.0) THEN
+            IF(MINOPT.EQ.3.AND..NOT.FEEZ) THEN
+              IF(IOFLAG.GE.10) WRITE(IPUNLP,1010)
+              MINOPT = 1
+              GO TO 310
+            ELSEIF(IERQPS.EQ.-2) THEN
+              IERNLP = -131
+              GO TO 350
+            ELSEIF(IERQPS.EQ.-3) THEN
+              IERNLP = -132
+              GO TO 350
+            ELSEIF(IERQPS.EQ.-4) THEN
+              IERNLP = -153
+              GO TO 350
+            ELSE
+              IERNLP = +112
+              GO TO 350
+            ENDIF
+          ENDIF
+C
+C         LOAD FIRST ORDER VARIABLE MULTIPLIERS INTO VECNU
+C
+          DO KK = 1,NDIM
+            VECNU(KK) = vcnu(kk)
+          ENDDO
+C
+        ENDIF
+C
+      ELSE
+C
+C         RESET DUAL INITIALIZATION FLAG TO PREVENT USING INPUT MULTIPLIERS
+C         ON SUBSEQUENT PASSES.
+C
+        INDUAL = 0
+C
+      ENDIF
+C
+C         COUNT NUMBER OF ACTIVE CONSTRAINTS
+C
+      MACTIV = 0
+      DO I=1,NDIM
+        IF (ISTATV(I).NE.0)  MACTIV = MACTIV + 1
+      ENDDO
+      DO I=1,MCON
+        IF (ISTATC(I).NE.0)  MACTIV = MACTIV + 1
+      ENDDO
+      NDOF = NDIM - MACTIV
+C
+      IF(IOFLAG.GE.10) THEN 
+C
+C         PRINT HEADING
+C
+        WRITE(IPUNLP,1005) 
+        WRITE(IPUNLP,1006) MACTIV,NDOF
+C
+C         WRITE OUT LAGRANGE MULTIPLIERS (PERMUTE TO EXTERNAL ORDER)
+C
+        IF(MPRMC.GT.0.AND.PRMUTE) CALL HDPRMY(VECLAM,MPRMC,IPRMC,IERP)
+        IF(MPRMC.GT.0.AND.PRMUTE) CALL HJPRMY(ISTATC,MPRMC,IPRMC,IERP)
+        IF(MACTIV.GT.0.AND.MACTIV.LE.NDIM) THEN
+          NMVAL = MIN(5,MCON)
+          CALL VECRYT(NMVAL,MPRMC,VECLAM,IWORK,
+     $        'Constraint Multipliers',IPUNLP)
+          CALL MAGRYT(NMVAL,MPRMC,VECLAM,EWRK,IWORK,
+     $        'Constraint Multiplier Magnitudes',IPUNLP)
+          CALL VECRYT(5,NDIM,VECNU,IWORK,
+     $         'Bound Multipliers',IPUNLP)
+          CALL MAGRYT(5,NDIM,VECNU,EWRK,IWORK,
+     $         'Bound Multiplier Magnitudes',IPUNLP)
+        ENDIF
+C
+C         DIAGNOSTIC OUTPUT (external order)
+C
+        II = 0
+        DO 140 I = 1,MPRMC
+          IF(ABS(VECLAM(I)).GT.ONEEP5) THEN
+            II = II + 1
+            IWORK(II) = I
+          ENDIF 
+ 140    CONTINUE
+C 
+        IF(II.NE.0) THEN
+          WRITE(IPUNLP,1016) 
+          CALL INTOUT(IWORK,II,IPUNLP)
+        ENDIF
+C
+        II = 0
+        DO 150 I = 1,MPRMC
+          IF(ABS(VECLAM(I)).LT.ONEEM5.AND.ISTATC(I).NE.0) THEN
+            II = II + 1
+            IWORK(II) = I
+          ENDIF 
+ 150    CONTINUE
+C 
+        IF(II.NE.0) THEN
+          WRITE(IPUNLP,1017) 
+          CALL INTOUT(IWORK,II,IPUNLP)
+        ENDIF
+C
+C         RESTORE MULTIPLIERS TO INTERNAL ORDER
+C
+        IF(MPRMC.GT.0.AND.PRMUTE) CALL HDPRMX(VECLAM,MPRMC,IPRMC,IERP)
+        IF(MPRMC.GT.0.AND.PRMUTE) CALL HJPRMX(ISTATC,MPRMC,IPRMC,IERP)
+C
+        II = 0
+        DO 160 I = 1,NDIM
+          IF(ABS(VECNU(I)).GT.ONEEP5) THEN
+            II = II + 1
+            IWORK(II) = I
+          ENDIF 
+ 160    CONTINUE
+C 
+        IF(II.NE.0) THEN
+          WRITE(IPUNLP,1018) 
+          CALL INTOUT(IWORK,II,IPUNLP)
+        ENDIF
+C
+        II = 0
+        DO 170 I = 1,NDIM
+          IF(ABS(VECNU(I)).LT.ONEEM5.AND.ISTATV(I).NE.0) THEN
+            II = II + 1
+            IWORK(II) = I
+          ENDIF 
+ 170    CONTINUE
+C 
+        IF(II.NE.0) THEN
+          WRITE(IPUNLP,1019) 
+          CALL INTOUT(IWORK,II,IPUNLP)
+        ENDIF
+C
+        WRITE(IPUNLP,1020)
+C
+      ENDIF
+C
+C         COMPUTE GRADIENT NORM
+C
+      DELFNM = ZERO
+      DO KK = 1,NDIM
+        DELFNM = MAX(DELFNM,ABS(DELF(KK)))
+        ewrk(kk) = DELF(KK)
+      ENDDO
+C
+C         SET ALGORITHM CONTROL PARAMETERS
+C
+      IREVRS(5) = 1
+C
+      IF(QPOPTN.EQ.'SPARSE') ISTART = 1
+C
+ 180  CONTINUE
+C
+C         CALL CONSTRAINED MINIMIZATION ALGORITHM
+C
+      CALL EQCMIN(ISTATC,CLWR,CUPR,CVEC,CBAR,EWRK,PGRAD,
+     $    GMAT,IROWG,JSTRG,RESVEC,RMAT,IROWR,JSTRR,HMAT,IROWH,JSTRH,
+     $    PNVC,VECLAM,SVEC,TVEC,UVEC,
+     $    VCXI,VECQ,VEKS,VCMU,
+     $    VECNU,VLMB,VCSB,VNBR,
+     $    ISTATV,XLWR,XUPR,XVEC,XBAR,XOLD,ISTATO,
+     $    FLTR,ISCRTC,LNFLTR,MXFLTR,CMAX,FILTUR,WORK(LCRWRK),
+     $    IWORK(LCIWRK),PGNORM,DELFNM,FNOM,FBAR,FXTRAP,FMIN,
+     $    SNORM,IFUNRU,IPUNLP,ISTART,ITERM,MCON,MDIM,MINOPT,
+     $    NONZH,NONZG,NONZR,NRES,MAXRES,MEQUAL,NDIM,LNRWRK,LNIWRK,
+     $    NEEDED,EXTRAP,IREVRS,REFPNT,SRCPNT)
+C
+C         CHECK IF RETURN IS FOR FUNCTION EVALUATION
+C
+      IF(IREVRS(1).EQ.1) THEN
+C
+C         EVALUATION OF THE RESTRICTED OBJECTIVE FUNCTION 
+C         REQUESTED
+C
+        GO TO 210
+C
+      ELSEIF(IREVRS(2).GE.1) THEN
+C
+C         EVALUATION OF THE PROJECTED GRADIENT REQUESTED
+C
+        INSTAT(2) = INSTAT(2) + 1
+        GO TO 200
+C
+      ELSEIF(IREVRS(3).GE.1) THEN
+C
+C         EVALUATION OF THE HESSIAN MATRIX REQUESTED
+C
+        GO TO 190
+C
+      ELSE
+C
+C         CONSTRAINED MINIMIZATION HAS TERMINATED
+C         KEY:                              (SETTING ROUTINE)
+C         ITERM = -14 USER EXTERNAL KILL
+C         ITERM = -13 I/O ERROR (INSUFFICIENT DISK SPACE) (SRCHDR)
+C         ITERM = -12 INSUFFICIENT INTEGER STORAGE FOR SRCHDR (SRCHDR)
+C         ITERM = -11 TERMINATION AFTER DIAGNOSTIC (LINE SEARCH)
+C         ITERM = -10 SEARCH DIR. FAILED--INCONS. CONSTR. (SRCHDR)
+C         ITERM = -9  SEARCH DIR. FAILED--SLOPE CONDITION (SRCHDR)
+C         ITERM = -8  INSUFFICIENT REAL STORAGE FOR SRCHDR (SRCHDR)
+C         ITERM = -7  SEARCH DIRECTION CALC. FAILED (NLPSPR,SRCHDR)
+C         ITERM = -6  SCHUR-QP FAILED WITH UNEXPECTED ERROR (SRCHDR)
+C         ITERM = -4  MAX. NO. INTERVAL HALVES IN LINE SEARCH (LINSRC)
+C         ITERM = -1  LINEAR REDUCED OBJECTIVE FUNCTION (LINSRC)
+C         ITERM =  0  CONTINUE ITERATIONS (NLPSPR)
+C         ITERM =  1  NORMAL TERMINATION FROM EQCMIN
+C         ITERM =  2  WEAK SOLUTION OBTAINED
+C         ITERM =  3  SMALL STEP (EQCMIN)
+C         ITERM =  4  MAX. NO. ITERATIONS (EQCMIN)
+C         ITERM =  5  FUNC. ERROR ON GRADIENT CALL (EQCMIN)
+C         ITERM =  6  MAX. NO. OF FUNC. EVALS.
+C         ITERM =  7  DIRECTION DERIVATIVE IS POSITIVE IN LINE SEARCH
+C         ITERM =  8  SMALL STEP BECAUSE OF BLOCKING FILTER ENTRY
+C
+        GO TO 280
+C
+      ENDIF
+C
+C ----------------------------------------------------------------------
+C ----------------------------------------------------------------------
+C ------- CONSTRAINED HESSIAN EVALUATION SEQUENCE (H.E.S.) -------------
+C ----------------------------------------------------------------------
+C ----------------------------------------------------------------------
+C
+C         THE FOLLOWING SEQUENCE OF OPERATIONS IS PERFORMED WHENEVER
+C         IREVRS(3) .GE. 1 TO EVALUATE THE HESSIAN OF THE LAGRANGIAN 
+C
+ 190  CONTINUE
+C
+C         TURN OFF PRINT EXCEPT WHEN IOFLAG = 30 
+C
+      IF(IOFLAG.LE.20) THEN
+        IREVRS(4) = 0
+      ELSE
+        IREVRS(4) = 1
+      ENDIF
+C
+C         SET CONSTRAINED FUNCTION ERROR FLAG
+C
+      IFUNRU = 0
+C
+C         SET HES RETURN POINT FLAG (IFESR = 1) AND RETURN
+C
+      IFESR = 1
+      IRVCOM = 1
+C
+      GO TO 10000
+C
+C ******* FUNCTION EVALUATION RETURN POINT
+C
+ 501  CONTINUE
+C
+C         FUNCTION EVALUATION COMPLETED.  IF IFERR IS 0 STORE
+C         ACTIVE CONSTRAINTS
+C         SET CONSTRAINED FUNCTION ERROR FLAG
+C
+      IFUNRU = IFERR
+C
+      IF(IFERR.EQ.0) CALL BESTPT(XBAR,XLWR,XUPR,NDIM,CBAR,CLWR,CUPR,
+     $    MCON,FBAR,XBST,CBST,FBEST) 
+C
+C         RETURN TO APPROPRIATE PLACE IN THE PROGRAM
+C
+      GO TO 180
+C
+C ----------------------------------------------------------------------
+C -------------------- END OF H.E.S ------------------------------------
+C ----------------------------------------------------------------------
+C
+C
+C ----------------------------------------------------------------------
+C ----------------------------------------------------------------------
+C ------- CONSTRAINED GRADIENT EVALUATION SEQUENCE (G.E.S.) ------------
+C ----------------------------------------------------------------------
+C ----------------------------------------------------------------------
+C
+C         THE FOLLOWING SEQUENCE OF OPERATIONS IS PERFORMED WHENEVER
+C         IREVRS(2) .GE. 1 TO EVALUATE THE GRADIENT OF THE OBJECTIVE 
+C         FUNCTION RESTRICTED TO THE ACTIVE CONSTRAINT SURFACE
+C         AT THIS STAGE IREVRS(1) = 0, REFPNT = .TRUE., AND 
+C         SRCPNT = .FALSE.
+C
+ 200  CONTINUE
+C
+C         UPDATE CONSTRAINTS AT REFERENCE POINT
+C
+      DO KK = 1,MCON
+        CVEC(KK) = CBAR(KK)
+      ENDDO
+C
+C         SAVE REFERENCE POINT AND GET ALL VARIABLES IN SYNC.
+C
+      DO KK = 1,NDIM
+        XVEC(KK) = XBAR(KK)
+        YBAR(KK) = XBAR(KK)
+        YVEC(KK) = YBAR(KK)
+      ENDDO
+      REFPNT = .FALSE.
+C
+C         TURN OFF PRINT EXCEPT WHEN IOFLAG = 30 
+C
+      IF(IOFLAG.LE.20) THEN
+        IREVRS(4) = 0
+      ELSE
+        IREVRS(4) = 1
+      ENDIF
+C
+C         SET CONSTRAINED FUNCTION ERROR FLAG
+C
+      IFUNRU = 0
+C
+C         SET GES RETURN POINT FLAG (IFESR = 2) AND RETURN
+C
+      IFESR = 2
+      IRVCOM = 1
+      GO TO 10000
+C
+C ******* FUNCTION EVALUATION RETURN POINT
+C
+ 502  CONTINUE
+C
+C         FUNCTION EVALUATION COMPLETED.  IF IFERR IS 0 STORE
+C         ACTIVE CONSTRAINTS
+C         SET CONSTRAINED FUNCTION ERROR FLAG
+C
+      IFUNRU = IFERR
+      IF(IFERR.EQ.0) CALL BESTPT(XBAR,XLWR,XUPR,NDIM,CBAR,CLWR,CUPR,
+     $    MCON,FBAR,XBST,CBST,FBEST) 
+C
+      IF(MINOPT.EQ.2) THEN
+C
+C         SET NCALPG TO PERFORM NUMERIC FACTORIZATION 
+C         FOLLOWED BY RHS SOLVE.  SYMBOLIC FACTORIZATION IS THE 
+C         SAME SINCE THE EQUALITY CONSTRAINT SET HAS NOT CHANGED
+C
+        NCALPG = 2
+C
+        CALL PRJGRD(CVEC,DELF,GMAT,IROWG,JSTRG,NONZG,
+     $    ISTATC,ISTATV,PWRK,WORK,LNRWPG,EWRK,
+     $    IWORK(LCIWPG),LNIWPG,NEEDED,MCON,MEQUAL,NDIM,NCALPG,PGRAD,
+     $    WMLT,VCNU,IWORK(LCITMP),IWORK(LCIFXV),
+     $    IWORK(LCIFRV),DELFNM,PGNORM,IOFLAG,IPUNLP,IREDER)
+C
+C         IF PROJECTED GRADIENT CALCULATION FAILED SET ITERM = -7
+C         TO FORCE CALCULATION OF A NEW ACTIVE SET 
+C
+        IF(IREDER.NE.0) ITERM = -7
+C         Real work array too small
+        IF(NEEDED.GT.LNRWPG) THEN
+          NEEDED = 2*NEEDED
+          IERNLP = -131
+          GO TO 350
+        ENDIF
+C
+      ENDIF
+C
+C         COMPUTE GRADIENT NORM
+C
+      DELFNM = ZERO
+      DO KK = 1,NDIM
+        DELFNM = MAX(DELFNM,ABS(DELF(KK)))
+        ewrk(kk) = DELF(KK)
+      ENDDO
+C
+C         RETURN TO APPROPRIATE PLACE IN THE PROGRAM
+C
+      GO TO 180
+C
+C ----------------------------------------------------------------------
+C -------------------- END OF G.E.S ------------------------------------
+C ----------------------------------------------------------------------
+C
+C
+C ----------------------------------------------------------------------
+C ----------------------------------------------------------------------
+C ------- CONSTRAINED FUNCTION EVALUATION SEQUENCE (F.E.S.) ------------
+C ----------------------------------------------------------------------
+C ----------------------------------------------------------------------
+C
+ 210  CONTINUE
+C
+C         INITIALIZATION ---
+C
+C         INITIALIZE CONSTRAINT ELIMINATION VARIABLES FROM XBAR
+C
+      DO KK = 1,NDIM
+        YVEC(KK) = XBAR(KK)
+        YBAR(KK) = XBAR(KK)
+      ENDDO
+C
+C         TURN OFF PRINT DURING CONSTRAINT ELIMINATION
+C         WHEN IOFLAG = 10
+C
+      IF(IOFLAG.LE.10) IREVRS(4) = 0
+C
+C         SET CONSTRAINED FUNCTION ERROR FLAG
+C
+      IFUNRU = 0
+C
+C         SAVE FUNCTION CALL VALUE
+C
+      IFCALU = IREVRS(1)
+C
+C         EVALUATE FUNCTIONS AT INITIAL POINT.  
+C
+      ICES = 1
+      IREVRS(2) = 0
+      GO TO 250
+C
+ 220  CONTINUE
+      IREVRS(1) = 0
+C
+C         SET CONSTRAINED FUNCTION ERROR FLAG
+C
+      IF(IFERR.EQ.0) THEN
+        IFUNRU = 0
+      ELSE
+        IFUNRU = IFERR
+        IF(IFERR.EQ.-100) ICTERM = 6
+        GO TO 260
+      ENDIF
+C
+C         INITIALIZE SEARCH TERMINATION FLAG
+C
+      ICTERM = 0
+C
+C         SET MAXIMUM NUMBER OF CONSTRAINT ELIMINATION ITERATIONS
+C
+      NITMXC = 200
+C
+C         SET CONSTRAINT JACOBIAN FACTORIZATION FLAG --
+C         USE PREVIOUS SYMBOLIC AND NUMERIC FACTORIZATION, AND
+C         ONLY DO RHS SOLVE
+C
+      NCALPG = 3
+C
+C         SET SLOW PROGRESS TOLERANCES
+C
+      SLOWTL = POINT5
+      NPANIC = 5
+C
+      IF(EXTRAP) THEN 
+C
+C         THE CURRENT POINT IS AN EXTRAPOLATION -- SET CONSTRAINT
+C         ELIMINATION TOLERANCES CONSERVATIVELY, I.E. DO NOT TRY
+C         VERY HARD TO SOLVE CONSTRAINTS
+C
+        NPANIC = 2
+C
+C         COMPUTE PENALTY FUNCTION
+C
+        PENF = FBAR
+        EXTRAP = .FALSE.
+        IF(MINOPT.EQ.2.AND.MEQUAL.GT.0) THEN
+          DO I = 1,MEQUAL
+            PENF = PENF - VECLAM(I)*(CBAR(I)-CLWR(I))
+          ENDDO
+          EXTRAP = (PENF-FXTRAP).GT.
+     $    MAX(ABS(FXTRAP),ABS(FNOM-FXTRAP),ONE)
+        ENDIF
+        IF(EXTRAP) GO TO 260
+      ENDIF
+C
+C         INITIALIZE CONSTRAINTS
+C
+      DO KK = 1,MEQUAL
+        CVEC(KK) = CBAR(KK)
+      ENDDO
+C
+C         SET OUTPUT FLAG
+C
+      IOFLSR = IOFLAG
+      IF(IREVRS(4).EQ.0) IOFLSR = 0
+C
+C         BYPASS SEARCH IF PROBLEM IS UNCONSTRAINED 
+C
+      IF(MINOPT.NE.2.OR.MEQUAL.EQ.0) THEN
+        ICTERM = 1
+        GO TO 260
+      ENDIF
+C
+ 240  CONTINUE
+C
+C         CALL THE SEARCH ALGORITHM TO ELIMINATE EQUALITY CONSTRAINTS
+C
+      LNWRK2 = MAX(2*NDIM,MCON)
+C
+      CALL CONELM(GMAT,IROWG,JSTRG,NONZG,MCON,MEQUAL,NDIM,
+     $    EWRK,LNWRK2,PWRK,WORK,LNRWPG,
+     $    IWORK(LCIWPG),LNIWPG,CLWR,CVEC,CBAR,CONTOL,DVEC,
+     $    ISTATC,ISTATV,YVEC,YBAR,IWORK(LCITMP),IWORK(LCIFXV),
+     $    IWORK(LCIFRV),SLOWTL,IOFLSR,IPUNLP,IT,NITMXC,IT1MAX,NPANIC,
+     $    IREVRS(1),NCALPG,IFERR,ICTERM)
+C
+C         SET SYSTEM PRINT FLAG
+C
+      IF(IREVRS(1).EQ.1) THEN
+        IREVRS(4) = 0
+        IF(IOFLAG.GE.20) IREVRS(4) = 1
+      ENDIF
+C
+C         SET RETURN POINT FLAG
+C
+      ICES = 2
+C
+C         CHECK IF RETURN IS FOR FUNCTION EVALUATION
+C
+      IF(ICTERM.EQ.0) GO TO 250
+C
+      GO TO 260
+C
+C ----------------------------------------------------------------------
+C ----------------------------------------------------------------------
+C ------- CONSTRAINT ELIMINATION EVALUATION SEQUENCE (C.E.E.S.) --------
+C ----------------------------------------------------------------------
+C ----------------------------------------------------------------------
+C
+ 250  CONTINUE
+C
+C         STORE INTERNAL VARIABLES INTO EXTERNAL
+C
+      DO KK = 1,NDIM
+        XBAR(KK) = YBAR(KK)
+      ENDDO
+C
+C         SET CEES RETURN POINT FLAG (IFESR = 3) AND RETURN
+C
+      IFESR = 3
+      IRVCOM = 1
+      GO TO 10000
+C
+C ******* FUNCTION EVALUATION RETURN POINT
+C
+ 503  CONTINUE
+      IF(IFERR.EQ.0) CALL BESTPT(XBAR,XLWR,XUPR,NDIM,CBAR,CLWR,CUPR,
+     $    MCON,FBAR,XBST,CBST,FBEST) 
+C
+C         EVALUATION COMPLETE. RETURN TO APPROPRIATE PLACE IN PROGRAM
+C
+      IF (ICES.EQ.1) THEN
+        GO TO 220
+      ELSEIF (ICES.EQ.2) THEN
+        GO TO 240
+      ENDIF
+C
+C ----------------------------------------------------------------------
+C -------------------- END OF C.E.E.S. ---------------------------------
+C ----------------------------------------------------------------------
+C
+ 260  CONTINUE
+C
+C         CONSTRAINT ELIMINATION SEARCH HAS TERMINATED.  IF IT
+C         TERMINATED ABNORMALLY SET FLAGS
+C
+      IF(ICTERM.EQ.1) THEN
+C
+C         ---NORMAL TERMINATION
+C
+C         LOAD YBAR INTO SOLUTION XBAR
+C
+        DO KK = 1,NDIM
+          XBAR(KK) = YBAR(KK)
+        ENDDO
+C
+      ELSEIF(ICTERM.NE.0) THEN
+C
+C         ---ABNORMAL TERMINATION
+C
+C         INFORMATIVE OUTPUT WHEN IOFLAG GE. 20
+C
+        IF(IOFLAG.GE.20) WRITE(IPUNLP,1013) ICTERM
+C
+        IF(ICTERM.EQ.6) THEN
+C
+C         ---MAX NO. OF FUNC. EVALS
+C
+          IFUNRU = -100
+C
+        ELSE
+C
+C         SET CONSTRAINED FUNCTION ERROR FLAG 
+C
+          IFUNRU = 2
+C
+        ENDIF
+C
+      ENDIF
+C
+      IF(IOFLAG.NE.10.OR..NOT.SRCPNT) GO TO 270
+C
+C         CONSTRAINT SURFACE PRINT --- IF THIS IS A SEARCH POINT 
+C         AND IOFLAG=10 RETURN IN ORDER TO PRINT THE POINT
+C
+      IREVRS(1) = 0
+      IREVRS(2) = 0
+      IREVRS(4) = 1
+      IFESR = 4
+      IRVCOM = 1
+      GO TO 10000
+C
+C ******* RETURN POINT
+C
+ 504  CONTINUE
+      IREVRS(4) = 0
+      IF(IFERR.EQ.0) CALL BESTPT(XBAR,XLWR,XUPR,NDIM,CBAR,CLWR,CUPR,
+     $    MCON,FBAR,XBST,CBST,FBEST) 
+ 270  CONTINUE
+C
+C         RESTORE FUNCTION CALL FLAG FOR EQCMIN
+C
+      IREVRS(1) = IFCALU
+C
+C         RETURN TO APPROPRIATE PLACE IN THE PROGRAM
+C
+      GO TO 180
+C
+C ----------------------------------------------------------------------
+C -------------------- END OF F.E.S ------------------------------------
+C ----------------------------------------------------------------------
+C
+C
+C
+C         O.B. TERMINATION PROCESSING.
+C
+ 280  CONTINUE
+C
+      IF(IOFLAG.GE.10) THEN
+        WRITE(IPUNLP,1002)
+        WRITE(IPUNLP,1001)
+      ENDIF
+C
+C         RESET SEARCH POINT FLAG
+C
+      SRCPNT = .FALSE.
+C
+C         UPDATE REFERENCE POINT XVEC AND XBAR.  IF ITERM IS
+C         NEGATIVE THE CONSTRAINED ALGORITHM TERMINATED 
+C         WITH A FUNCTION CALL -- SO XBAR AND YBAR ARE CURRENT.  
+C         WHEN ITERM IS POSITIVE THE CONSTRAINED ALGORITHM
+C         TERMINATED WITH A GRADIENT CALL -- SO EVERYTHING
+C         IS CURRENT
+C
+      IF(ITERM.LE.-1) THEN
+        DO KK = 1,NDIM
+          XVEC(KK) = XBAR(KK)
+          YVEC(KK) = YBAR(KK)
+        ENDDO
+      ENDIF
+C
+      IF(ITERM.EQ.3.OR.ITERM.EQ.8.OR.ITERM.EQ.-9.OR.ITERM.EQ.-10) THEN
+C
+C         ALGORITHM FAILED TO CONVERGE WITH INPUT STRATEGY
+C         SET PUNT MODE FLAG 
+C
+        DO KK = 1,NDIM
+          XBAR(KK) = XVEC(KK)
+        ENDDO
+        PUNT = .TRUE.
+C
+C         IF POINT IS FEASIBLE TERMINATE IMMEDIATELY, OTHERWISE TRY
+C         TO FIND A NEARBY FEASIBLE POINT AND CONTINUE
+C
+        CALL CONSAT(CLWR,CUPR,CBAR,XLWR,XUPR,XVEC,MCON,NDIM,
+     $    CONTOL,FEEZ)
+C
+        IF(FEEZ) THEN
+          PUNT = .FALSE.
+          IF(ITERM.EQ.3) THEN
+            IERNLP = +105
+          ELSE
+            IERNLP = +110
+          ENDIF
+C      
+C         LOAD FEASIBLE POINT WITH BEST VALUE OF OBJECTIVE 
+C
+          IF(FBEST.LT.FNOM) THEN
+            DO KK = 1,NDIM
+              XVEC(KK) = XBST(KK)
+              XBAR(KK) = XVEC(KK)
+            ENDDO
+            DO KK = 1,MCON
+              CVEC(KK) = cbst(kk)
+              CBAR(KK) = CVEC(KK)
+            ENDDO
+            FNOM = FBEST
+            FBAR = FBEST
+          ELSE
+            FBEST = FNOM
+          ENDIF
+          GO TO 350
+        ELSE
+          GO TO 290
+        ENDIF
+C
+      ENDIF
+C
+      IF(ITERM.NE.-1) GO TO 300
+C
+ 290  CONTINUE
+C
+C         COMPUTE GRADIENTS AT FINAL POINT BECAUSE --
+C         ITERM = -1 MEANS UNIVARIATE SEARCH TERMINATED
+C         WITH A LINEAR OBJECTIVE FUNCTION
+C
+      IFESR = 5
+      IRVCOM = 1
+      IREVRS(1) = 1
+      IREVRS(2) = 1
+      IREVRS(4) = 0
+      GO TO 10000
+C
+C ******* FUNCTION EVALUATION RETURN POINT
+C
+ 505  CONTINUE
+      IREVRS(1) = 0
+      IREVRS(2) = 0
+      IREVRS(4) = 0
+      IF(IFERR.EQ.0) CALL BESTPT(XBAR,XLWR,XUPR,NDIM,CBAR,CLWR,CUPR,
+     $    MCON,FBAR,XBST,CBST,FBEST) 
+C
+ 300  CONTINUE
+C
+C         SAVE OBJECTIVE FUNCTION AND CONSTRAINTS
+C
+      FNOM = FBAR
+C
+      DO KK = 1,MCON
+        CVEC(KK) = CBAR(KK)
+      ENDDO
+C
+C
+C ----------------------------------------------------------------------
+C
+C         END OF OPTIMIZATION CYCLE
+C
+      IF(ITERM.EQ.-8) THEN
+C
+C         INSUFFICIENT REAL STORAGE FOR SEARCH DIRECTION CALCULATION
+C         TERMINATE THE ALGORITHM AND SAVE STORAGE REQUIRED IN NWORK
+C
+        IERNLP = -131
+        IF(MINOPT.EQ.2) NEEDED = 2*NEEDED 
+C
+        GO TO 350
+C
+      ELSEIF(ITERM.EQ.-12) THEN
+C
+C         INSUFFICIENT INTEGER STORAGE FOR SEARCH DIRECTION CALCULATION
+C         TERMINATE THE ALGORITHM AND SAVE STORAGE REQUIRED IN NIWORK
+C
+        IERNLP = -132
+        IF(MINOPT.EQ.2) NEEDED = 2*NEEDED 
+C
+        GO TO 350
+C
+      ELSEIF(ITERM.EQ.3) THEN
+C
+C          OPTIMIZATION PROCESS FAILED.  ATTEMPT TO FIND
+C          A FEASIBLE POINT AND THEN QUIT (PUNT)
+C
+        IF(QPOPTN.EQ.'SPARSE') ISTART = 1
+        MINOPT = 4
+        IF(IOFLAG.GE.10) WRITE(IPUNLP,1009)
+        GO TO 310
+C
+      ELSEIF(ITERM.EQ.8.OR.ITERM.EQ.-9.OR.ITERM.EQ.-10) THEN
+C
+C          TIGHTEN THE SOUTHEAST CORNER VALUE AND RESET THE FILTER
+C
+        IF(FILTUR) THEN
+          LSTFLT = MXFLTR + LNFLTR - 1
+          CMAX = fltr(LSTFLT)
+          LNFLTR = 0
+        ENDIF
+C
+C          OPTIMIZATION PROCESS FAILED.  ATTEMPT TO FIND
+C          A FEASIBLE POINT AND CONTINUE
+C
+        IF(QPOPTN.EQ.'SPARSE') ISTART = 1
+        GO TO 310
+C
+C
+      ELSEIF(ITERM.EQ.5) THEN
+C
+C         FUNCTION ERROR DURING GRADIENT EVALUATION
+C
+          IERNLP = -129
+          GO TO 350
+C
+      ELSE
+C
+C          TERMINATION OF OPTIMIZATION PROCESS
+C
+        GO TO 130
+C
+      ENDIF
+C
+ 310  CONTINUE
+C
+C -------------------------------------------------------------------
+C -------------------------------------------------------------------
+C ----------------- CONSTRAINT PHASE BLOCK --------------------------
+C -------------------------------------------------------------------
+C -------------------------------------------------------------------
+C
+C         PROBLEM DEFINITION -- PHASE 1 OF THE ALGORITHM
+C         I.E. LOCATE A FEASIBLE POINT
+C
+C         PRINT HEADING
+C
+      IF(IOFLAG.GE.10) WRITE(IPUNLP,1007)
+C
+C         SET TERMINATION FLAG
+C
+      ISTERM = 0
+C
+C         INITIALIZE FUNCTION ERROR FLAG
+C
+      IFERR = 0
+C    
+C         SET ALGORITHM INFORMATION FLAG
+C
+      IREVRS(5) = 4
+C
+ 320  CONTINUE
+C
+C         CALL THE NONLINEAR SEARCH ALGORITHM
+C
+      CALL SRCHFZ(GMAT,IROWG,JSTRG,NONZG,MCON,NDIM,
+     $    WORK,NWORK,IWORK,NIWORK,NEEDED,ISTATC,CLWR,CUPR,
+     $    CVEC,CBAR,COLD,SVEC,ISTATV,XLWR,XUPR,XVEC,XBAR,
+     $    IOFLAG,IPUNLP,IREVRS,IFERR,ISTART,ISTERM)
+C
+      IF(IREVRS(2).GE.1) INSTAT(3) = INSTAT(3) + 1
+C
+C         CHECK IF RETURN IS FOR FUNCTION EVALUATION
+C
+      IF(IREVRS(1).EQ.1.OR.IREVRS(2).GE.1.OR.IREVRS(4).EQ.1) GO TO 330
+C
+C         NONLINEAR SEARCH HAS TERMINATED
+C
+      IF(ISTERM.EQ.1) THEN
+C
+C         ---NORMAL TERMINATION
+C
+        GO TO 340
+C
+      ELSEIF(ISTERM.EQ.3) THEN
+C
+C         ---MAX. NO. OF ITERATIONS FOR SRCHFZ
+C
+        IERNLP = +107
+        GO TO 350
+C
+      ELSEIF(ISTERM.EQ.5) THEN
+C
+C         ---NOT ENOUGH REAL STORAGE FOR SRCHFZ;  
+C
+        NEEDED = MAX(NEEDED,NWORK)
+        IERNLP = -131
+        GO TO 350
+C
+      ELSEIF(ISTERM.EQ.6) THEN
+C
+C         ---SINGULAR JACOBIAN ON SUCCESSIVE ITERATIONS
+C
+        IERNLP = -133
+        GO TO 350
+C
+      ELSEIF(ISTERM.EQ.7) THEN
+C
+C         ---NOT ENOUGH INTEGER STORAGE FOR SRCHFZ;  
+C
+        NEEDED = MAX(NEEDED,NIWORK)
+        IERNLP = -132
+        GO TO 350
+C
+      ELSEIF(ISTERM.EQ.8) THEN
+C
+C         ---MAX. NO. OF FUNC. EVALS
+C
+        IERNLP = +104
+        GO TO 350
+C
+      ELSEIF(ISTERM.EQ.9) THEN
+C
+C         ---UPHILL SEARCH DIRECTION IN LINE SEARCH
+C
+        IERNLP = +116
+        GO TO 350
+C
+      ELSEIF(ISTERM.EQ.10.OR.ISTERM.EQ.4) THEN
+C
+C         ---FUNCTION ERROR AT INITIAL POINT OR DURING GRAD. EVAL
+C
+        IERNLP = -129
+        GO TO 350
+C
+      ELSEIF(ISTERM.EQ.11) THEN
+C
+C         ---I/O ERROR (INSUFFICIENT DISK SPACE)
+C
+        IERNLP = -153
+        GO TO 350
+C
+      ELSEIF(ISTERM.EQ.12) THEN
+C
+C         ---USER EXTERNAL KILL
+C
+        IERNLP = -800
+        GO TO 350
+C
+      ELSE
+C
+C         ---ABNORMAL TERMINATION
+C
+C         FEASIBLE POINT NOT FOUND--TERMINATE ALGORITHM
+C
+        IERNLP = +108
+        IF(IOFLAG.GE.10) WRITE(IPUNLP,1003) 
+        IF(IOFLAG.GE.10) WRITE(IPUNLP,1001)
+        GO TO 350
+C
+      ENDIF
+C
+C ----------------------------------------------------------------------
+C
+C         CONSTRAINT EVALUATION SEQUENCE (C.E.S.)
+C
+ 330  CONTINUE
+C
+C         SET FUNCTION ERROR FLAG
+C
+      IFERR = 0
+C
+C         SET C.E.S. RETURN POINT FLAG (IFESR = 6) AND RETURN
+C
+      IFESR = 6
+      IRVCOM = 1
+      GO TO 10000
+C
+C ******* FUNCTION EVALUATION RETURN POINT
+C
+ 506  CONTINUE
+      IF(IFERR.EQ.0) CALL BESTPT(XBAR,XLWR,XUPR,NDIM,CBAR,CLWR,CUPR,
+     $    MCON,FBAR,XBST,CBST,FBEST) 
+C
+C         INCLUDE MAJOR ITERATIONS IN THE FILTER (BUT IGNORE ACCEPT)
+C
+      IF(FILTUR.AND.IFERR.EQ.0.AND.IREVRS(2).GE.1) THEN
+C
+        CALL FLTRQP(CLWR,CUPR,CBAR,VECLAM,VECNU,XLWR,XUPR,XBAR,
+     $    FBAR,CMAX,MCON,MDIM,NDIM,FLTR,
+     $    LNFLTR,MXFLTR,ISCRTC,ACCEPT)
+C
+      ENDIF
+C
+C         EVALUATION COMPLETE.  REENTER SEARCH.
+C
+      GO TO 320
+C
+C ----------------------------------------------------------------------
+C
+C         C.P.B. TERMINATION PROCESSING
+C
+ 340  CONTINUE
+C
+      IF(MINOPT.GE.4) GO TO 507
+C
+C         IF THIS IS AN OPTIMIZATION PROBLEM COMPUTE GRADIENTS
+C         AT THE FINAL (FEASIBLE) POINT
+C
+      IFESR = 7
+      IRVCOM = 1
+      IREVRS(1) = 0
+      IREVRS(2) = 1
+      IREVRS(4) = 0
+      GO TO 10000
+C
+C ******* FUNCTION EVALUATION RETURN POINT
+C
+ 507  CONTINUE
+      IREVRS(1) = 0
+      IREVRS(2) = 0
+      IREVRS(4) = 0
+      IF(IFERR.EQ.0) CALL BESTPT(XBAR,XLWR,XUPR,NDIM,CBAR,CLWR,CUPR,
+     $    MCON,FBAR,XBST,CBST,FBEST) 
+C
+      IF(IOFLAG.GE.10) WRITE(IPUNLP,1004)
+      IF(IOFLAG.GE.10) WRITE(IPUNLP,1001)
+C
+C         GET VARIABLES BACK IN SYNC.
+C
+      DO KK = 1,NDIM
+        YVEC(KK) = YBAR(KK)
+        XVEC(KK) = XBAR(KK)
+      ENDDO
+C
+C         SAVE OBJECTIVE FUNCTION 
+C
+      FNOM = FBAR
+C
+C         INCLUDE MAJOR ITERATIONS IN THE FILTER (BUT IGNORE ACCEPT)
+C
+      IF(FILTUR) THEN
+C
+        CALL FLTRQP(CLWR,CUPR,CBAR,VECLAM,VECNU,XLWR,XUPR,XBAR,
+     $    FBAR,CMAX,MCON,MDIM,NDIM,FLTR,
+     $    LNFLTR,MXFLTR,ISCRTC,ACCEPT)
+C
+      ENDIF
+C
+C         RESET TERMINATION FLAGS
+C
+      ISTERM = 0
+      FEEZ = .TRUE.
+C
+      IF(MINOPT.LT.4.AND..NOT.PUNT) THEN
+C
+C         SAVE THE CURRENT FEASIBLE POINT IN XBST
+C
+        CALL BESTPT(XVEC,XLWR,XUPR,NDIM,CVEC,CLWR,CUPR,
+     $    MCON,FNOM,XBST,CBST,FBEST) 
+C
+C         BEGIN THE OPTIMIZATION PROCESS
+C
+        GO TO 130
+C
+      ELSEIF(MINOPT.LT.4.AND.PUNT) THEN
+C
+C         LOAD FEASIBLE POINT WITH BEST VALUE OF OBJECTIVE 
+C
+        IF(FBEST.LT.FNOM) THEN
+C
+C         CURRENT FEASIBLE POINT IS WORSE THAN PREVIOUS BEST--PUNT
+C         STRATEGY FAILED TO FIND AN IMPROVED POINT, SO TERMINATE
+C
+          DO KK = 1,NDIM
+            XVEC(KK) = XBST(KK)
+            XBAR(KK) = XVEC(KK)
+          ENDDO
+          DO KK = 1,MCON
+            CVEC(KK) = cbst(kk)
+            CBAR(KK) = CVEC(KK)
+          ENDDO
+          FNOM = FBEST
+          FBAR = FBEST
+          IERNLP = +110
+C
+        ELSE
+C
+C         CURRENT FEASIBLE POINT IS IMPROVED--PUNT STRATEGY WORKED
+C         SO RESET PUNT FLAG AND CONTINUE
+C
+          PUNT = .FALSE.
+          ITERM = 0
+          CALL BESTPT(XVEC,XLWR,XUPR,NDIM,CVEC,CLWR,CUPR,
+     $      MCON,FNOM,XBST,CBST,FBEST) 
+C
+C         BEGIN THE OPTIMIZATION PROCESS
+C
+          GO TO 130
+C
+        ENDIF
+C
+      ELSEIF((MINOPT.EQ.4.OR.MINOPT.EQ.5).AND.PUNT) THEN
+C
+C         LOAD FEASIBLE POINT WITH BEST VALUE OF OBJECTIVE 
+C
+        IF(FBEST.LT.FNOM) THEN
+          DO KK = 1,NDIM
+            XVEC(KK) = XBST(KK)
+            XBAR(KK) = XVEC(KK)
+          ENDDO
+          FNOM = FBEST
+          FBAR = FBEST
+        ELSE
+          CALL BESTPT(XVEC,XLWR,XUPR,NDIM,CVEC,CLWR,CUPR,
+     $      MCON,FNOM,XBST,CBST,FBEST) 
+        ENDIF
+C
+        IF(ITERM.EQ.3) THEN
+C
+C         FEASIBLE POINT FOUND AFTER SMALL STEP TERMINATION FROM EQCMIN
+C
+          IERNLP = +105
+C
+        ELSEIF(ITERM.EQ.-9.OR.ITERM.EQ.-10) THEN
+C
+C         FEASIBLE POINT FOUND AFTER MAX DIAGONAL OR SLOPE CONDITION TERMINATION
+C         FROM EQCMIN
+C
+          IERNLP = +110
+C
+        ENDIF
+C
+      ENDIF
+C
+C ----------------------------------------------------------------------
+C
+C         ALGORITHM TERMINATION PROCESSING
+C
+ 350  CONTINUE
+C
+      IF(PUNT.AND.(ISTERM.GT.1.OR.ISTERM.LT.0)) THEN
+C
+C        PUNT MODE FAILED TO FIND A FEASIBLE POINT
+C
+        IF(FBEST.LT.BIGNUM) THEN
+          DO KK = 1,NDIM
+            XVEC(KK) = XBST(KK)
+            XBAR(KK) = XVEC(KK)
+          ENDDO
+          DO KK = 1,MCON
+            CVEC(KK) = cbst(kk)
+            CBAR(KK) = CVEC(KK)
+          ENDDO
+          FNOM = FBEST
+          FBAR = FBEST
+          IERNLP = +113
+        ELSE
+          IF (ISTERM.NE.5 .AND. ISTERM.NE.7)  IERNLP = +108
+        ENDIF
+      ENDIF
+c
+C ======================================================================
+c
+      IF(ALLOCATED(CBST)) DEALLOCATE(CBST)
+      IF(ALLOCATED(DVEC)) DEALLOCATE(DVEC)
+      IF(ALLOCATED(EWRK)) DEALLOCATE(EWRK)
+      IF(ALLOCATED(FLTR)) DEALLOCATE(FLTR)
+      IF(ALLOCATED(PNVC)) DEALLOCATE(PNVC)
+      IF(ALLOCATED(PWRK)) DEALLOCATE(PWRK)
+      IF(ALLOCATED(TVEC)) DEALLOCATE(TVEC)
+      IF(ALLOCATED(UVEC)) DEALLOCATE(UVEC)
+      IF(ALLOCATED(VCMU)) DEALLOCATE(VCMU)
+      IF(ALLOCATED(VCNU)) DEALLOCATE(VCNU)
+      IF(ALLOCATED(VCSB)) DEALLOCATE(VCSB)
+      IF(ALLOCATED(VCXI)) DEALLOCATE(VCXI)
+      IF(ALLOCATED(VECQ)) DEALLOCATE(VECQ)
+      IF(ALLOCATED(VEKS)) DEALLOCATE(VEKS)
+      IF(ALLOCATED(VLMB)) DEALLOCATE(VLMB)
+      IF(ALLOCATED(VNBR)) DEALLOCATE(VNBR)
+      IF(ALLOCATED(WMLT)) DEALLOCATE(WMLT)
+      IF(ALLOCATED(XBST)) DEALLOCATE(XBST)
+      IF(ALLOCATED(XOLD)) DEALLOCATE(XOLD)
+c
+C ======================================================================
+C
+C ----------------------------------------------------------------------
+C
+      IRVCOM = 0
+      GO TO 10000
+C
+10000 CONTINUE
+C
+ 1001 FORMAT(T3,'*',T106,'*'/2X,104('*'))
+ 1002 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'CONSTRAINED OPTIMIZATION COMPLE
+     $TED',T106,'*')
+ 1003 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'NONLINEAR SEARCH TERMINATED ABN
+     $ORMALLY',T106,'*')
+ 1004 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'CONSTRAINT SATISFACTION COMPLET
+     $ED',T106,'*')
+ 1005 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'CONSTRAINED OPTIMIZATION',
+     $    T106,'*')
+ 1006 FORMAT(T3,'*',T106,'*'/
+     $    T3,'*',T11,'Number of Active Constraints:',I6,T106,'*'/
+     $    T3,'*',T11,'Number of Degrees of Freedom:',I6,T106,'*')
+ 1007 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'CONSTRAINT SATISFACTION'
+     $    ,T106,'*')
+ 1008 FORMAT(T3,'*',T106,'*'
+     $  /T3,'*',T11,85('-'),T106,'*',
+     $  /T3,'*',T11,'Constraints',T41,'=',I6,T54,'|'
+     $  ,T59,'Variables',T89,'=',I6,T106,'*'
+     $  /T3,'*',T11,'  Equalities',T41,'=',I6,T54,'|'
+     $  ,T59,'  Equalities',T89,'=',I6,T106,'*'
+     $  /T3,'*',T11,'  Inequalities',T41,'=',I6,T54,'|'
+     $  ,T59,'  Bounds',T89,'=',I6,T106,'*'
+     $  /T3,'*',T11,'    Inactive',T41,'=',I6,T54,'|'
+     $  ,T59,'    Free',T89,'=',I6,T106,'*'
+     $  /T3,'*',T11,'    Fixed on Lower Bound',T41,'=',I6,T54,'|'
+     $  ,T59,'    Fixed on Lower Bound',T89,'=',I6,T106,'*'
+     $  /T3,'*',T11,'    Fixed on Upper Bound',T41,'=',I6,T54,'|'
+     $  ,T59,'    Fixed on Upper Bound',T89,'=',I6,T106,'*'
+     $  /T3,'*',T11,85('-'),T106,'*',
+     $  /T3,'*',T11,'Number of Active Constraints',T41,'=',I6,T54,'|'
+     $  ,T59,'Number of Degrees of Freedom',T89,'=',I6,T106,'*'
+     $  /T3,'*',T11,85('-'),T106,'*')
+ 1009 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....FIND SUBOPTIMAL FEASIBLE P
+     $OINT',T106,'*')
+ 1010 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....INITIAL MULTIPLIER CALCULA
+     $TION FAILED; SWITCH TO OPTION FM',T106,'*')
+ 1011 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'Predicted Optimum Objective Fun
+     $ction =',1PG16.8,T106,'*'/
+     $    T3,'*',T106,'*'/T3,'*',T11,'Gradient Norm =',1PG16.8,T106,'*')
+ 1012 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'CONVERGENCE TESTS',T106,'*')
+ 1013 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'CONSTRAINT ELIMINATION TERMINAT
+     $ED ABNORMALLY--ICTERM =',I5,T106,'*')
+ 1014 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....MAXIMUM NUMBER OF INTERVAL
+     $ HALVES IN LINE SEARCH--TERMINATE ALGORITHM',T106,'*')
+ 1016 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....THE FOLLOWING CONSTRAINTS 
+     $MAY BE LINEARLY DEPENDENT OR POORLY SCALED',T106,'*'
+     $   /T3,'*',T106,'*')
+ 1017 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....THE FOLLOWING CONSTRAINTS 
+     $MAY BE EXTRANEOUS OR POORLY SCALED',T106,'*'
+     $   /T3,'*',T106,'*') 
+ 1018 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....THE FOLLOWING BOUNDS MAY B
+     $E LINEARLY DEPENDENT OR POORLY SCALED',T106,'*'
+     $   /T3,'*',T106,'*')
+ 1019 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....THE FOLLOWING BOUNDS MAY B
+     $E EXTRANEOUS OR POORLY SCALED',T106,'*'
+     $   /T3,'*',T106,'*') 
+ 1020 FORMAT(T3,'*',T106,'*'/2X,'*   -----------------------------------
+     $-------------------------------------------------------------   *'
+     $)
+ 1021 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....Rank Deficient Linear Leas
+     $t Squares',T106,'*')
+      RETURN
+      END

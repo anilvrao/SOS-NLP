@@ -1,0 +1,11 @@
+build/
+third_party/highs-build/
+third_party/highs-install/
+*.o
+*.a
+*.mod
+*.so
+*.dylib
+*.dll
+*.exe
+.DS_Store

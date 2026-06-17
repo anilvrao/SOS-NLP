@@ -1,0 +1,1344 @@
+
+      SUBROUTINE SRCHDR(MCON,MEQUAL,MDIM,NDIM,GMAT,IROWG,
+     $    JSTRG,NONZG,NRES,RMAT,IROWR,JSTRR,NONZR,
+     $    HMAT,IROWH,JSTRH,NONZH,GVEC,GNORM,CLWR,CUPR,
+     $    CVEC,ISTATC,VECLAM,ISTATV,XVEC,XLWR,XUPR,ISTATO,
+     $    DIAGNL,FNOM,PENRHO,PENVEC,WORK,NWORK,
+     $    IWORK,LNIWRK,NEEDED,ISTART,IT,IPU,IPC,VECP,VECXI,VECQ,
+     $    VECS,VECMU,VECNU,VECSBR,CNDNUM,DF0,D2F0,EIGMIN,EIGMAX,
+     $    FMIN,ITERM,NQPITR,NUMKTF,LINEAR,RESET,EQPSTP)
+C
+C ======================================================================
+C     SRCHDR===>srchdr   J.T. BETTS
+C ======================================================================
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      SAVE
+C
+C
+C         PURPOSE:  SOLVE THE QUADRATIC PROGRAM; 
+C
+C                   MINIMIZE
+C                   
+C                   F = .5*(P**T)HP + (G**T)P
+C
+C                   SUBJECT TO THE NONLINEAR CONSTRAINTS
+C
+C                   BL - C < GP < BU - C
+C
+C                   AND SIMPLE BOUND CONSTRAINTS
+C
+C                   XL - X < P < XU - X
+C
+C                   THE NONLINEAR EQUALITY CONSTRAINTS ARE IN ROWS
+C                   1 ... MEQUAL, FOLLOWED BY THE NONLINEAR INEQUALITIES
+C                   IN ROWS (MEQUAL+1) ... MCON.
+C                   CONSTRUCT SEARCH DIRECTIONS FOR THE LAGRANGE
+C                   MULTIPLIERS, AND SLACK VARIABLES.  CONSTRUCT
+C                   SLOPE, CURVATURE AND PENALTY WEIGHT.
+C         INPUT:    
+C
+C            MCON   NUMBER OF CONSTRAINTS
+C            MEQUAL NUMBER OF EQUALITY CONSTRAINTS
+C            MDIM   CONSTRAINT ARRAY DIMENSION
+C            NDIM   NUMBER OF VARIABLES 
+C            GMAT   NONZERO ELEMENTS OF LINEAR SYSTEM (NONZG)
+C            IROWG  INTEGER ROW INDEX VECTOR (NONZG)
+C            JSTRG  INTEGER COLUMN START VECTOR (NDIM+1)
+C            NONZG  NUMBER OF JACOBIAN NONZEROS = JSTRG(NDIM+1)-1
+C            NRES   NUMBER OF RESIDUALS
+C            RMAT   RESIDUAL JACOBIAN MATRIX STORED AS AN ARRAY (NONZR)
+C            IROWR  ROW INDEX OF NONZEROS IN RMAT (NONZR)
+C            JSTRR  COLUMN START INDEX (NDIM+1)
+C            NONZR  NUMBER OF NONZEROS IN RMAT
+C                   NOTE: NONZR  = JSTRR(NDIM+1)-1
+C            HMAT   NONZERO ELEMENTS OF LOWER TRIANGLE OF HMAT (NONZH)
+C            IROWH  INTEGER ROW INDEX VECTOR (NONZH)
+C            JSTRH  INTEGER COLUMN START VECTOR (NDIM+1)
+C            NONZH  NUMBER OF HESSIAN NONZEROS = JSTRH(NDIM+1)-1
+C            GVEC   GRADIENT VECTOR (NDIM)
+C            GNORM  NORM OF GVEC
+C            CLWR   CONSTRAINT LOWER BOUND (MDIM)
+C            CUPR   CONSTRAINT UPPER BOUND (MDIM)
+C            CVEC   CONSTRAINT VECTOR (MDIM)
+C            ISTATC CONSTRAINT STATUS ARRAY (MDIM)
+C            VECLAM SECOND ORDER LAGRANGE MULTIPLIER (MDIM)
+C            ISTATV VARIABLE STATUS ARRAY (NDIM)
+C            XVEC   INDEPENDENT VARIABLES (NDIM)
+C            XLWR   VARIABLE LOWER BOUND (NDIM)
+C            XUPR   VARIABLE UPPER BOUND (NDIM)
+C            ISTATO OLD VARIABLE/CONSTRAINT STATUS (NDIM+MDIM)
+C            DIAGNL LEVENBERG PARAMETER (0 .LE. DIAGNL .LE. 1) 
+C                   WHEN DIAGNL = 1, HESSIAN IS POS. DEF.
+C            FNOM   NOMINAL VALUE OF OBJECTIVE FUNCTION
+C            PENRHO PENALTY WEIGHT
+C            PENVEC PENALTY WEIGHT VECTOR (MCON+NDIM)
+C            WORK   WORK ARRAY (NWORK)
+C            NWORK  LENGTH OF WORK ARRAY 
+C            IWORK  INTEGER WORK ARRAY (LNIWRK)
+C            LNIWRK LENGTH OF IWORK
+C            NEEDED STORAGE REQUIRED 
+C            ISTART QP START OPTION
+C            IT     ITERATION NUMBER
+C            IPU    OUTPUT UNIT NO.
+C            IPC    OUTPUT CONTROL FLAG
+C
+C
+C         OUTPUT:
+C
+C            VECP   REAL VARIABLE SEARCH DIRECTION (NDIM)
+C            VECXI  MULTIPLIER SEARCH DIRECTION (MCON+NDIM)
+C            VECQ   SLACK VARIABLE SEARCH DIRECTION (MCON+NDIM)
+C            VECS   SLACK VARIABLES (MCON+NDIM)
+C            VECMU  QP CONSTRAINT LAGRANGE MULTIPLIER (MDIM)
+C            VECNU  QP BOUND LAGRANGE MULTIPLIERS (NDIM)
+C            VECSBR QUADRATIC PROGRAM SLACK VARIABLES (MCON+NDIM)
+C            ISTATC CONSTRAINT STATUS ARRAY (MDIM)
+C            ISTATV VARIABLE STATUS ARRAY (NDIM)
+C            CNDNUM CONDITION NUMBER OF K-T MATRIX
+C            DF0    SLOPE OF MERIT FUNCTION AT PIVOT
+C            D2F0   QP ESTIMATE FOR CURVATURE AT PIVOT
+C            EIGMIN ESTIMATE OF MINIMUM EIGENVALUE OF HESSIAN
+C            EIGMAX ESTIMATE OF MAX. EIGENVALUE OF HESSIAN
+C            FMIN   PREDICTED MINIMUM VALUE
+C            PENRHO PENALTY WEIGHT
+C            PENVEC PENALTY VECTOR (MCON+NDIM)
+C            ITERM  TERMINATION FLAG
+C            NQPITR NUMBER OF QP ITERATIONS TO OBTAIN SEARCH DIRECT.
+C            NUMKTF NUMBER OF MATRIX FACTORIZATIONS
+C            LINEAR LOGICAL FLAG SET TRUE FOR LINEAR LAGRANGIAN
+C            RESET  LOGICAL FLAG SET TRUE WHEN HESSIAN AND LAGRANGE 
+C                   MULTIPLIERS ARE RESET
+C
+      DIMENSION GMAT(NONZG),IROWG(NONZG),JSTRG(NDIM+1),RMAT(NONZR),
+     $    IROWR(NONZR),JSTRR(NDIM+1),HMAT(NONZH),
+     $    IROWH(NONZH),JSTRH(NDIM+1),GVEC(NDIM),CVEC(MDIM),
+     $    VECLAM(MDIM),WORK(NWORK),IWORK(LNIWRK),VECP(NDIM),
+     $    VECXI(MCON+NDIM),VECQ(MCON+NDIM),VECS(MCON+NDIM),
+     $    VECMU(MDIM),VECNU(NDIM),VECSBR(MCON+NDIM),
+     $    CLWR(MDIM),CUPR(MDIM),XVEC(NDIM),XLWR(NDIM),XUPR(NDIM),
+     $    ISTATC(MDIM),ISTATV(NDIM),ISTATO(NDIM+MDIM),PENVEC(MCON+NDIM)
+      LOGICAL BADACT,FIXVAR
+C
+      COMMON /STATIS/ INSTAT(30),RLSTAT(20)
+      COMMON /PERCOM/ ISQPER(20)
+C
+      INCLUDE '../commons/NLPSPR.CMN'
+C
+      COMMON /KONSTN/ 
+     *  ZEROMN  ,ZEROOT  ,BIGNUM  ,BGROOT  ,BIGBND  ,BIGCND
+C
+      COMMON /CONDLB/ CNDLBL
+      CHARACTER(LEN=17) CNDLBL
+C
+      PARAMETER (MAXLVN=15)
+      COMMON /LEVNP1/ LEVNIT
+      COMMON /LEVNP2/ LEVNDY
+      CHARACTER(LEN=60) LEVNDY(MAXLVN)
+      CHARACTER(LEN=60) BLANK
+C
+      LOGICAL BADQP,EQPSTP
+      LOGICAL LINTRM
+      LOGICAL RESET
+      LOGICAL LINEAR
+C
+      PARAMETER (ZERO=0.0D0,ONE=1.0D0,POINT5=5.0D-1,TWO=2.0D0,TEN=1.0D1,
+     $    ONEEM5=1.0D-5,FOUR=4.0D0,ONEEP2=1.0D2,ONEEP4=1.0D4)
+      EXTERNAL FTRIHS
+      DATA BLANK(1:60) / ' '/
+C
+C         INITIALIZE LINEAR LAGRANGIAN FLAG
+C
+      LINEAR = .FALSE.
+C
+C         INITIALIZE MULTIPLIER/HESSIAN RESET FLAG
+C
+      RESET = .FALSE.
+C
+C         INITIALIZE PENALTY ITERATION FLAG
+C
+      ITRFLG = 1      
+C
+C         INITIALIZE NUMBER OF QP ITERATIONS
+C
+      NQPITR = 1
+C
+C         INITIALIZE EQP STEP FLAG
+C
+      EQPSTP = .FALSE.
+C
+C         INITIALIZE OUTPUT CONTROL FOR QP ALGORITHM
+C
+      IF(IOFSHR.EQ.0) THEN
+        IPCSHR = 0
+        IF(IPC.GE.30) IPCSHR = IPC
+      ELSE
+        IPCSHR = IOFSHR
+      ENDIF
+C
+C             STORAGE ALLOCATION FOR THE REAL ARRAY
+C     ---ALLOCATE THE ARRAYS (I.E. CONSTRUCT THE POINTERS)
+C
+      LCGZER = 1
+      LCCUPR = LCGZER + NDIM
+      LCCLWR = LCCUPR + MCON
+      LCXUPR = LCCLWR + MCON
+      LCXLWR = LCXUPR + NDIM + NRES
+      LCQVEC = LCXLWR + NDIM + NRES
+      LCRHSK = LCQVEC + NDIM + NRES
+      NRDIM = MAX(2*NDIM,MCON)
+      LCSOLN = LCRHSK + NRDIM
+      LCWORK = LCSOLN + 2*NDIM
+      LNWORK = NWORK - LCWORK + 1
+      IF(LNWORK.LT.0) THEN
+        NEEDED = LCWORK + 1 
+        ITERM = -8
+        GO TO 10000
+      ENDIF
+C
+C         SET POINTER TO LOCATION FOR MERIT FUNCTION CALCULATIONS
+C
+      LCDPDL = LCXUPR
+C
+C         ESTIMATE WORKING STORAGE 
+C
+      NEEDRW = 0
+      NEEDIW = 0
+      LCIWRK = 1
+      IF(QPOPTN.NE.'SPARSE') CALL NLSPST(NDIM,MCON,NEEDIW,NEEDRW)
+C
+C         CHECK SIZE OF REAL WORK ARRAY
+C
+      IF(LNWORK.LE.NEEDRW) THEN
+        NEEDED = LCWORK + NEEDRW + 2
+        ITERM = -8
+        GO TO 10000
+      ENDIF
+C 
+C         COMPUTE INTEGER WORK ARRAY POINTERS
+C
+      IF(NRES.GT.0) THEN
+        NEEDIW =  2*NDIM + MCON + 5*NRES + NONZG + NONZR + NONZH 
+     $            + 1 + MAX(NONZG+NONZR+NRES,NDIM+NRES+1)
+      ENDIF
+C
+C         FOR SPARSE PROBLEMS BREAK UP THE INTEGER WORK ARRAY FOR USE
+C         BY EQPKKT
+C
+      IF(QPOPTN.EQ.'SPARSE') THEN
+C
+C         INITIALIZE K-T FACTORIZATION COUNT CLOCK
+C
+        CALL CLKSET(13)
+C
+C       STORAGE ALLOCATION FOR THE INTEGER ARRAY (NOT USED BY SHUR-QP)
+C     ---ALLOCATE THE ARRAYS (I.E. CONSTRUCT THE POINTERS)
+C
+        LCIACT = 1
+        LCFIXV = LCIACT + MCON
+        LCKTRW = LCFIXV + NDIM
+        NEEDIW = LCKTRW + 2*NDIM - 1
+C
+      ENDIF
+C
+C         CHECK SIZE OF INTEGER WORK ARRAY
+C
+      IF(LNIWRK.LT.NEEDIW) THEN
+        NEEDED = NEEDIW + LCIWRK - 1
+        ITERM = -12
+        GO TO 10000
+      ENDIF
+C
+      IEREKT = 0
+      IF(IT.EQ.1) THEN
+C
+C         SAVE ACTIVE SET INFORMATION ON FIRST ITERATION
+C
+        DO KK = 1,NDIM
+          ISTATO(KK) = ISTATV(KK)
+        ENDDO
+        DO KK = 0,MCON-1
+          ISTATO(NDIM+1+KK) = ISTATC(KK+1)  
+        ENDDO
+        NSAME = 0
+C
+      ELSE
+C
+C         CHECK WHETHER CURRENT ACTIVE SET STILL APPEARS CORRECT
+C
+        CALL BADSET(CLWR,CUPR,CVEC,VECLAM,VECNU,XLWR,XUPR,XVEC,
+     $    ISTATC,ISTATV,CONTOL,MCON,MDIM,NDIM,BADACT)
+C
+        IF(BADACT) NSAME = 0
+C
+      ENDIF
+C
+C ======================================================================
+C ======================================================================
+C ======================================================================
+C
+C             COMPUTE SEARCH DIRECTION
+C
+C         COMPUTE THE ROW NORMS OF HMAT.  NOTE FOR I = 1,...,NDIM
+C         WORK(I) = 2|HMAT(I,I)| + SUM (I.NE.J) |HMAT(I,J)|
+C         
+C
+      WORK(1:NDIM) = ZERO
+C
+      IF  ( QPOPTN.NE.'SPARSE' )  THEN
+C
+        II = 0
+        DO KCOL = 1,NDIM
+C
+          DO I = KCOL,NDIM
+            II = II + 1
+C
+C         CONTRIBUTION FOR THIS ROW
+C
+            WORK(I) = WORK(I) + ABS(HMAT(II))
+C
+C         CONTRIBUTION FOR UPPER TRIANGULAR PART
+C
+            WORK(KCOL) = WORK(KCOL) + ABS(HMAT(II))
+C
+          ENDDO
+C
+        ENDDO
+C
+C         COMPUTE GERSCHGORIN BOUNDS ON EIGENVALUES
+C
+        EIGMIN = BIGNUM
+        EIGMAX = -BIGNUM
+        HMTNRM = ZERO
+        NDIM2 = 2*NDIM
+        DO KCOL = 1,NDIM
+          JSTRHD = KCOL - ((KCOL-1)*(KCOL-NDIM2))/2
+          HDIAG = HMAT(JSTRHD)
+          EIGBND = HDIAG + TWO*ABS(HDIAG) - WORK(KCOL)
+          EIGMIN = MIN(EIGMIN,EIGBND)
+          EIGBND = HDIAG - TWO*ABS(HDIAG) + WORK(KCOL)
+          EIGMAX = MAX(EIGMAX,EIGBND)
+          HMTNRM = MAX(HMTNRM,WORK(KCOL)-ABS(HDIAG))
+        ENDDO
+C
+      ELSE
+C
+        DO KCOL = 1,NDIM
+C
+          DO I = JSTRH(KCOL),JSTRH(KCOL+1)-1
+C
+C         CONTRIBUTION FOR THIS ROW
+C
+            IR = IROWH(I)
+            IF(ISTATV(IR).NE.3) WORK(IR) = WORK(IR) + ABS(HMAT(I))
+C
+C         CONTRIBUTION FOR UPPER TRIANGULAR PART
+C
+            IF(ISTATV(KCOL).NE.3) WORK(KCOL) = WORK(KCOL) + ABS(HMAT(I))
+C
+          ENDDO
+C
+        ENDDO
+C
+C         COMPUTE GERSCHGORIN BOUNDS ON EIGENVALUES
+C
+        EIGMIN = BIGNUM
+        EIGMAX = -BIGNUM
+        HMTNRM = ZERO
+        DO KCOL = 1,NDIM
+          IF(ISTATV(KCOL).EQ.3) CYCLE
+          HDIAG = HMAT(JSTRH(KCOL))
+          EIGBND = HDIAG + TWO*ABS(HDIAG) - WORK(KCOL)
+          EIGMIN = MIN(EIGMIN,EIGBND)
+          EIGBND = HDIAG - TWO*ABS(HDIAG) + WORK(KCOL)
+          EIGMAX = MAX(EIGMAX,EIGBND)
+          HMTNRM = MAX(HMTNRM,WORK(KCOL)-ABS(HDIAG))
+        ENDDO
+C
+      ENDIF
+C
+C         INCLUDE THE CONTRIBUTION FOR THE IDENTITY MATRIX IN THE AUGMENTED 
+C         HESSIAN
+C
+      IF(NRES.GT.0) THEN
+        EIGMIN = MIN(EIGMIN,ONE)
+        EIGMAX = MAX(EIGMAX,ONE)
+      ENDIF
+C
+      EIGLIM = ONE - MIN(EIGMIN,ZERO)
+C
+C         CHECK FOR (NEAR) SINGULAR HESSIAN
+C
+      IF(HMTNRM.LT.ZEROOT*(ONE+GNORM)
+     $  .AND.NRES.EQ.0) THEN
+        DIAGNL = ZEROOT
+        LINEAR = .TRUE.
+      ENDIF
+C
+C         AUGMENT THE HESSIAN DIAGONAL 
+C
+      DIAGMD = DIAGNL*EIGLIM
+      CALL DGLMOD(NDIM,HMAT,JSTRH,DIAGMD)
+C     
+C         INITIALIZE ESTIMATE FOR FINAL LEVENBERG PARAMETER
+C
+      CRITMU = ZERO
+      NEGCRV = 0
+C
+ 170  CONTINUE
+C
+      IF(IOFLAG.GE.20.AND.LEVNIT.LT.MAXLVN) THEN
+        IF(IERQP.EQ.-1103) THEN
+          LEVNIT = LEVNIT + 1
+          LEVNDY(LEVNIT) = BLANK
+          WRITE(LEVNDY(LEVNIT)(1:16),'(SP,1PG16.6)') DIAGNL
+          LEVNDY(LEVNIT)(20:37) = 'Singular KT matrix'
+        ELSEIF(IERQP.EQ.-1104) THEN
+          LEVNIT = LEVNIT + 1
+          LEVNDY(LEVNIT) = BLANK
+          WRITE(LEVNDY(LEVNIT)(1:16),'(SP,1PG16.6)') DIAGNL
+          LEVNDY(LEVNIT)(20:36) = 'Incorrect inertia'
+        ELSEIF(IERQP.EQ.-1106) THEN
+          LEVNIT = LEVNIT + 1
+          LEVNDY(LEVNIT) = BLANK
+          WRITE(LEVNDY(LEVNIT)(1:16),'(SP,1PG16.6)') DIAGNL
+          LEVNDY(LEVNIT)(20:44) = 'Ill-conditioned KT matrix'
+        ELSEIF(IERQP.EQ.-1107) THEN
+          LEVNIT = LEVNIT + 1
+          LEVNDY(LEVNIT) = BLANK
+          WRITE(LEVNDY(LEVNIT)(1:16),'(SP,1PG16.6)') DIAGNL
+          LEVNDY(LEVNIT)(20:49) = 'Incorrect inertia (warm start)'
+        ELSEIF(IERQP.EQ.-1108) THEN
+          LEVNIT = LEVNIT + 1
+          LEVNDY(LEVNIT) = BLANK
+          WRITE(LEVNDY(LEVNIT)(1:16),'(SP,1PG16.6)') DIAGNL
+          LEVNDY(LEVNIT)(20:33) = 'Excessive fill'
+        ELSEIF(IERQP.EQ.-1109) THEN
+          LEVNIT = LEVNIT + 1
+          LEVNDY(LEVNIT) = BLANK
+          WRITE(LEVNDY(LEVNIT)(1:16),'(SP,1PG16.6)') DIAGNL
+          LEVNDY(LEVNIT)(20:51) = 'Ill-conditioning (relaxed feas.)'
+        ELSEIF(IERQP.EQ.+3) THEN
+          LEVNIT = LEVNIT + 1
+          LEVNDY(LEVNIT) = BLANK
+          WRITE(LEVNDY(LEVNIT)(1:16),'(SP,1PG16.6)') DIAGNL
+          LEVNDY(LEVNIT)(20:51) = 'Locally inconsistent constraints'
+        ELSEIF(NEGCRV.EQ.+1) THEN
+          LEVNIT = LEVNIT + 1
+          LEVNDY(LEVNIT) = BLANK
+          WRITE(LEVNDY(LEVNIT)(1:16),'(SP,1PG16.6)') DIAGNL
+          LEVNDY(LEVNIT)(20:37) = 'Negative curvature'
+        ENDIF
+      ENDIF
+C
+C         DEFINE LINEAR TERM FOR OBJECTIVE FUNCTION
+C
+      LINTRM = .TRUE.
+C
+C         DEFINE CONSTRAINT UPPER AND LOWER BOUNDS
+C
+C         -- EQUALITY CONSTRAINTS
+C
+      CVNORM = ZERO
+      DO I = 1,MEQUAL
+C
+        WORK(LCCLWR+I-1) = CLWR(I) - CVEC(I)
+        CVNORM = MAX(CVNORM,ABS(WORK(LCCLWR+I-1)))
+        WORK(LCCUPR+I-1) = CUPR(I) - CVEC(I)
+C
+      ENDDO
+C
+C         -- INEQUALITY CONSTRAINTS
+C
+      DO I = MEQUAL+1,MCON
+C
+        IF(CLWR(I).GT.-BIGBND) THEN
+          WORK(LCCLWR+I-1) = CLWR(I) - CVEC(I)
+          CVNORM = MAX(CVNORM,WORK(LCCLWR+I-1))
+        ELSE
+          WORK(LCCLWR+I-1) = -BIGBND
+        ENDIF
+        IF(CUPR(I).LT.BIGBND) THEN
+          WORK(LCCUPR+I-1) = CUPR(I) - CVEC(I)
+          CVNORM = MAX(CVNORM,-WORK(LCCUPR+I-1))
+        ELSE
+          WORK(LCCUPR+I-1) = BIGBND
+        ENDIF
+C
+      ENDDO
+C
+      DO I = 1,NDIM
+        IF(XLWR(I).GT.-BIGBND) THEN
+          WORK(LCXLWR+I-1) = XLWR(I) - XVEC(I)
+        ELSE
+          WORK(LCXLWR+I-1) = -BIGBND
+        ENDIF
+        IF(XUPR(I).LT.BIGBND) THEN
+          WORK(LCXUPR+I-1) = XUPR(I) - XVEC(I)
+        ELSE
+          WORK(LCXUPR+I-1) = BIGBND
+        ENDIF
+      ENDDO
+C
+C         IF ACTIVE SET IS OK CHECK THAT FIXED VARIABLES ARE ON BOUNDS
+C
+      ABSERR = ZERO
+      IF(.NOT.BADACT) THEN
+        DO I = 1,NDIM
+          IF(ISTATV(I).EQ.1) THEN
+            ABSERR = MAX(ABSERR,ABS(XLWR(I)-XVEC(I)))
+          ELSEIF(ISTATV(I).EQ.2) THEN
+            ABSERR = MAX(ABSERR,ABS(XUPR(I)-XVEC(I)))
+          ELSEIF(ISTATV(I).EQ.3) THEN
+            ABSERR = MAX(ABSERR,ABS(XLWR(I)-XVEC(I)))
+          ENDIF
+        ENDDO
+      ENDIF
+      FIXVAR = ABSERR.LT.ZEROMN
+C
+C         INITIAL GUESS FOR SEARCH DIRECTION
+C
+      VECP(1:NDIM) = ZERO
+C
+      ISQPER(1:20) = 0
+      INSTAT(12) = INSTAT(12) + 1
+C
+C ======================================================================
+C ======================================================================
+C ======================================================================
+C ======================================================================
+C ======================================================================
+c
+      IF(NRES.EQ.0) THEN
+C
+        IF(IT.EQ.ITDRQP) THEN
+C
+C         WRITE DATA FOR TEST PROBLEM AND THEN STOP
+C
+          IF(QPOPTN.EQ.'SPARSE') THEN
+            CALL FILSHR(NDIM,MCON,HMAT,IROWH,JSTRH,NONZH,GVEC,
+     $      WORK(LCGZER),GMAT,IROWG,JSTRG,NONZG,WORK(LCCUPR),
+     $      WORK(LCCLWR),VECP,WORK(LCXUPR),
+     $      WORK(LCXLWR),WORK(LCWORK),LNWORK,BIGBND,IPU,IPCSHR,
+     $      ISTART,IPUDRF,.TRUE.,'SRCHDRQP.FIL')
+          ELSE
+            CALL FILDNS(NDIM,MCON,NDIM,HMAT,GVEC,
+     1      MDIM,GMAT,WORK(LCCUPR),WORK(LCCLWR),
+     2      WORK(LCXUPR),WORK(LCXLWR),BIGBND,IPU,IPCSHR,
+     3      LINTRM,ISTART,VECP,
+     4      IPUDRF,.TRUE.,'SRCHDRQP.FIL')
+          ENDIF
+C
+          STOP
+C
+        ENDIF
+C
+        IF  ( QPOPTN.NE.'SPARSE' )  THEN
+C
+C ======================================================================
+C ========Dense QP======================================================
+C ======================================================================
+C
+          IPCDNS = IPCSHR
+          LDG    = MAX (1, JSTRG(1))
+C
+          ISTRQP = 1
+          CALL NLSPQP ( NDIM         , MCON         , NDIM         ,
+     1                  HMAT         , FTRIHS       , GVEC         ,
+     2                  LDG          , GMAT         , WORK(LCCUPR) ,
+     3                  WORK(LCCLWR) , WORK(LCXUPR) ,
+     4                  WORK(LCXLWR) , BIGBND       , IPU          ,
+     5                  IPCDNS       , LINTRM       , ISTRQP       ,
+     6                  LNIWRK       , LNWORK       , VECP         ,
+     7                  IWORK        , WORK(LCWORK) , VECMU        ,
+     8                  VECXI(MCON+1), ISTATC       , ISTATV       ,
+     9                  QUAD         , NITRFP       , NITRQP       ,
+     A                  NOUTER       , NLVMOD       , CRITMU       , 
+     B                  MNP1WK       , MXP1WK       , AVP1WK       ,
+     C                  MNP2WK       , MXP2WK       , AVP2WK       ,
+     D                  ZHLMIN       , ZHLMAX       , SMINAA       ,
+     E                  SMAXAA       , IERDQP  )
+C
+          NCHLFC = NOUTER + NLVMOD
+          ISQPER(2) = NITRQP + NITRFP
+C
+C         CONSTRUCT CONDITION NUMBER ESTIMATES
+C
+          IF(ZHLMIN.GT.ZERO) THEN
+            CNDZHZ = ZHLMAX/ZHLMIN
+          ELSE
+            CNDZHZ = -ONE
+          ENDIF
+          IF(SMINAA.GT.ZERO) THEN
+            CNDJAC = SMAXAA/SMINAA
+          ELSE
+            CNDJAC = -ONE
+          ENDIF
+C
+          IF(CNDZHZ.GE.CNDJAC) THEN
+            CNDLBL = 'Cond(Z''HZ).......'
+            CNDNUM = CNDZHZ
+          ELSEIF(CNDJAC.GT.ZERO) THEN
+            CNDLBL = 'Cond(G)..........'
+            CNDNUM = CNDJAC
+          ELSE
+            CNDLBL = 'Cond(Z''HZ).......'
+            CNDNUM = ONE
+          ENDIF
+          CNDNUM = ABS(CNDNUM)
+C
+C         SET IERQP FROM THE IERDQP OUTPUT
+C
+          IERQP = IERDQP
+          BADQP = IMIN(MCON,ISTATC,1).LT.0
+          IF(IERDQP.EQ.0.AND.BADQP) THEN
+            IERQP = 3
+          ELSEIF(IERDQP.EQ.2.OR.IERDQP.EQ.-1022) THEN
+            IERQP = -1104
+          ELSEIF(IERDQP.EQ.5) THEN
+            IERQP = -1014
+          ENDIF
+C
+C         RESTORE ISTATC 
+C
+          IF(BADQP) THEN
+            DO I = 1,MCON
+              IF(CLWR(I).EQ.CUPR(I)) THEN
+                ISTATC(I) = 3
+              ELSEIF(ISTATC(I).EQ.-2) THEN
+                ISTATC(I) = 2
+              ELSEIF(ISTATC(I).EQ.-1) THEN
+                ISTATC(I) = 1
+              ENDIF
+            ENDDO
+          ENDIF
+C
+        ELSE
+C
+          CNDLBL = 'Cond(K)..........'
+C
+ 215      CONTINUE
+C
+          IF(NSAME.GE.MNSAME.AND.FIXVAR) THEN
+c
+C ======================================================================
+C ==========Sparse Equality Constrained QP==============================
+C ======================================================================
+C
+            NCALL = 1
+            CALL EQPKKT(MCON,NDIM,GMAT,IROWG,JSTRG,NONZG,WORK(LCCUPR),
+     $        WORK(LCCLWR),ISTATC,IWORK(LCIACT),HMAT,IROWH,JSTRH,NONZH,
+     $        GVEC,QUAD,WORK(LCXUPR),WORK(LCXLWR),ISTATV,VECP,
+     $        VECXI(MCON+1),VECMU,WORK(LCRHSK),NRDIM,WORK(LCSOLN),
+     $        WORK(LCWORK),LNWORK,NEEDED,IWORK(LCFIXV),IWORK(LCKTRW),
+     $        NCALL,IPU,IPCSHR,CNDNUM,LNSYMB,IEREKT)
+C
+            EQPSTP = .TRUE.
+C           
+C             EVEN THOUGH EQPKKT DOES NOT USE HOT START FLAG THE WORK
+C             ARRAYS HAVE BEEN DESTROYED, SO A SUBSEQUENT SHURQP HOT
+C             START CANNOT BE DONE.  RESET ISTART TO FORCE A COLD START
+C
+              ISTART = 1
+C
+            IF(IEREKT.EQ.-1) THEN
+C 
+C             ACTIVE SET IS INCORRECT; REPEAT SOLUTION WITH FULL QP
+C
+              NSAME = 0
+              GO TO 215
+C
+            ELSEIF(IEREKT.EQ.-1103.OR.IEREKT.EQ.-1104.OR.
+     $             IEREKT.EQ.-1108) THEN
+C
+              IERQP = IEREKT
+              NSAME = 0
+C
+            ELSE
+C
+              IERQP = IEREKT
+C
+            ENDIF
+C
+          ELSE
+c
+C ======================================================================
+C ==========Schur-Complement Sparse QP==================================
+C ======================================================================
+C
+            CALL SHURQP(NDIM,MCON,HMAT,IROWH,JSTRH,NONZH,GVEC,
+     $        WORK(LCGZER),QUAD,GMAT,IROWG,JSTRG,NONZG,WORK(LCCUPR),
+     $        WORK(LCCLWR),VECMU,ISTATC,VECP,WORK(LCXUPR),
+     $        WORK(LCXLWR),VECXI(MCON+1),ISTATV,WORK(LCWORK),LNWORK,
+     $        IWORK,LNIWRK,NEEDED,BIGBND,IPU,IPCSHR,ISTART,
+     $        CNDNUM,IERQP)
+C
+              EQPSTP = .FALSE.
+C
+          ENDIF
+c
+        ENDIF
+C
+      ELSE
+c
+C ======================================================================
+C ==========Schur-Complement Sparse Least Squares=======================
+C ======================================================================
+C
+        CNDLBL = 'Cond(K)..........'
+C
+        DO KK = 0,NDIM-1
+          WORK(LCQVEC+KK) = VECP(KK+1)
+        ENDDO
+C
+C         COMPUTE RESIDUAL SEARCH DIRECTION GUESS
+C
+        CALL MVPSPR(1,NRES,NDIM,RMAT,IROWR,JSTRR,VECP,WORK(LCQVEC+NDIM))
+C
+        DO I = 1,NRES
+C
+C         -- RESIDUAL VARIABLE BOUNDS
+C
+          WORK(LCXLWR+NDIM+I-1) = -BIGBND
+          WORK(LCXUPR+NDIM+I-1) = BIGBND
+C
+        ENDDO
+C
+        CALL LSQRQP(NDIM,WORK(LCQVEC),WORK(LCXLWR),WORK(LCXUPR),MCON,
+     $    WORK(LCCLWR),WORK(LCCUPR),GMAT,IROWG,JSTRG,
+     $    NONZG,NRES,RMAT,IROWR,JSTRR,NONZR,HMAT,IROWH,JSTRH,
+     $    NONZH,GVEC,WORK(LCWORK),LNWORK,IWORK,LNIWRK,NEEDED,
+     $    IPC,IPU,ISTART,IT,VECMU,VECXI(MCON+1),ISTATC,ISTATV,CNDNUM,
+     $    QUAD,IERQP)
+C
+        IF(IERQP.GE.0.AND.IERQP.LE.2) THEN
+          DO KK = 0,NDIM-1
+            VECP(KK+1) = WORK(LCQVEC+KK)
+          ENDDO
+        ENDIF
+C
+      ENDIF
+c
+C ======================================================================
+C ======================================================================
+C ======================================================================
+C ======================================================================
+C ======================================================================
+C
+C         QP STATISTICS
+C
+      IF(ISQPER(4).GT.INSTAT(14)) THEN
+        INSTAT(14) = ISQPER(4)
+        INSTAT(15) = IT
+      ENDIF
+      NQPITR = NQPITR + ISQPER(2)
+      INSTAT(26) = INSTAT(26) + NQPITR
+      INSTAT(27) = MAX(INSTAT(27),NQPITR)
+      IF(ISQPER(2).GT.INSTAT(16)) THEN
+        INSTAT(16) = ISQPER(2)
+        INSTAT(17) = IT
+      ENDIF
+      IF(ISQPER(5).GT.INSTAT(18)) THEN
+        INSTAT(18) = ISQPER(5)
+        INSTAT(19) = IT
+      ENDIF
+      IF(ISQPER(10).GT.INSTAT(20)) THEN
+        INSTAT(20) = ISQPER(10)
+        INSTAT(21) = IT
+      ENDIF
+      IF(QPOPTN.NE.'SPARSE') THEN
+        INSTAT(29) = INSTAT(29) + NITRFP
+      ENDIF
+C
+      IF(IERQP.NE.0.AND.IERQP.NE.1) INSTAT(11) = INSTAT(11) + 1
+C
+      IF(IERQP.EQ.0.OR.IERQP.EQ.1.OR.IERQP.EQ.2) THEN
+C
+C         IF QP WAS SUCCESSFUL SET ISTART TO PERMIT A WARM
+C         START ON SUBSEQUENT CALLS
+C
+        ISTART = 0
+C
+      ELSEIF(IERQP.EQ.-1014) THEN
+C
+C         CHECK FOR ADEQUATE REAL WORKING STORAGE 
+C
+        NEEDED = LCWORK + NEEDED - 1
+        ITERM = -8
+        GO TO 10000
+C
+      ELSEIF(IERQP.EQ.-1019) THEN
+C
+C         CHECK FOR ADEQUATE INTEGER WORKING STORAGE 
+C
+        NEEDED = LCIWRK + NEEDED - 1
+        ITERM = -12
+        GO TO 10000
+C
+      ELSEIF(IERQP.EQ.-1111) THEN
+C
+C         I/O ERROR (INSUFFICIENT DISK SPACE)
+C
+        ITERM = -13
+        GO TO 10000
+C
+      ELSEIF(IERQP.EQ.-1999) THEN
+C
+C         USER EXTERNAL KILL
+C
+        ITERM = -14
+        GO TO 10000
+C
+      ELSEIF(IERQP.EQ.-1103.OR.IERQP.EQ.-1104.OR.IERQP.EQ.-1106.OR.
+     $  IERQP.EQ.-1107.OR.IERQP.EQ.-1108.OR.IERQP.EQ.-1109.OR.
+     $  IERQP.EQ.+3) THEN
+C
+C         K-T SYSTEM ERRORS:
+C         IERQP = -1103   SINGULAR KT MATRIX
+C         IERQP = -1104   WRONG INERTIA
+C         IERQP = -1106   ILL-CONDITIONED KT MATRIX
+C         IERQP = -1107   INCORRECT INERTIA DETECTED AFTER WARM START
+C         IERQP = -1108   EXCESSIVE FILL DURING NUMERIC FACTORIZATION
+C         IERQP = -1109   ILL-CONDITIONING WITH RELAXED FEASIBILITY
+C         IERQP = +3      FEASIBLITY PENALTY TOO LARGE; INCONSISTENT CONST.
+C
+        IF(DIAGNL.EQ.ONE) THEN
+C
+C         QP FAILED;  INCORRECT MULTIPLIERS AND/OR HESSIAN MAY BE
+C         THE CAUSE.  RESET HESSIAN TO IDENTITY, AND RESET MULTIPLIERS
+C
+          RESET = .TRUE.
+          HMAT(1:NONZH) = ZERO
+          CALL DGLMOD(NDIM,HMAT,JSTRH,ONE)
+          DIAGNL = ZERO
+          ISTART = 1
+          GO TO 170
+C
+        ELSE
+C
+          IF(RESET) THEN
+C
+C         QP FAILED AND HESSIAN HAS BEEN RESET; THE CONSTRAINTS
+C         ARE LOCALLY INCONSISTENT -- STOP
+C
+            ITERM = -10
+            IF(IPC.GE.10) THEN
+              IF(IERQP.EQ.-1103) WRITE(IPU,1001)
+              IF(IERQP.EQ.-1104) WRITE(IPU,1002)
+              IF(IERQP.EQ.-1106) WRITE(IPU,1003)
+              IF(IERQP.EQ.-1107) WRITE(IPU,1004)
+              IF(IERQP.EQ.-1108) WRITE(IPU,1008)
+              IF(IERQP.EQ.-1109) WRITE(IPU,1009)
+              IF(IERQP.EQ.+3) WRITE(IPU,1010)
+            ENDIF
+            GO TO 10000
+C
+          ELSE
+C
+C         AUGMENT THE HESSIAN DIAGONAL 
+C
+            IF(CRITMU.LE.ZERO) THEN
+              DIAGNW = TEN*MAX(DIAGNL,ZEROOT)
+            ELSE
+              DIAGNW = DIAGNL + CRITMU/EIGLIM
+            ENDIF
+            DIAGNW = MIN(DIAGNW,ONE)
+            DIAGMD = (DIAGNW-DIAGNL)*EIGLIM
+            CALL DGLMOD(NDIM,HMAT,JSTRH,DIAGMD)
+            DIAGNL = DIAGNW
+            GO TO 170
+C
+          ENDIF
+C
+        ENDIF
+C
+      ELSE
+C
+C         OTHER ERRORS FROM QP--IF THIS IS A WARM START TRY AGAIN
+C         WITH A COLD START.  IF IT IS ALREADY A COLD START; TERMINATE
+C
+        IF(ISTART.EQ.0) THEN
+          ISTART = 1
+          GO TO 170
+        ELSE
+          ITERM = -6
+          IF(IPC.GE.1) WRITE(IPU,1007) IERQP
+          GO TO 10000
+        ENDIF
+C
+      ENDIF
+C
+C         COMPUTE THE DIRECTION DERIVATIVE 
+C
+      GDOTP = DOT_PRODUCT(GVEC(1:NDIM),VECP(1:NDIM))
+C
+C         COMPUTE THE CURVATURE: D2F0 = (P**T)HP
+C         SINCE THE QP MINIMUM VALUE QUAD = .5*(P**T)HP + (G**T)P
+C
+      D2F0 = TWO*(QUAD - GDOTP)
+C
+      IF(D2F0.LT.ZERO.AND.ABS(QUAD).GT.ONEEP2*ZEROMN) THEN
+C
+C         CURVATURE IS NOT POSITIVE EVEN THOUGH PROJECTED HESSIAN IS POSITIVE
+C         DEFINITE.  IF POSSIBLE INCREASE THE LEVENBERG PARAMETER IN ORDER
+C         TO SATISFY SUFFICIENT DECREASE CONDITION IN THE MERIT FUNCTION
+C
+        NEGCRV = +1
+C
+        IF(DIAGNL.EQ.ONE) THEN
+C
+C         CURVATURE IS NEGATIVE;  INCORRECT MULTIPLIERS AND/OR HESSIAN MAY BE
+C         THE CAUSE.  RESET HESSIAN TO IDENTITY, AND RESET MULTIPLIERS
+C
+          RESET = .TRUE.
+          HMAT(1:NONZH) = ZERO
+          CALL DGLMOD(NDIM,HMAT,JSTRH,ONE)
+          DIAGNL = ZERO
+          EIGLIM = ONE
+          GO TO 170
+C
+        ELSE
+C
+          IF(RESET) THEN
+C
+C         QP FAILED AND HESSIAN HAS BEEN RESET; THE CONSTRAINTS
+C         ARE LOCALLY INCONSISTENT -- STOP
+C
+            ITERM = -10
+            IF(IPC.GE.10) WRITE(IPU,1005)
+            GO TO 10000
+C
+          ELSE
+C
+C         AUGMENT THE HESSIAN DIAGONAL 
+C
+            IF(CRITMU.LE.ZERO) THEN
+              DIAGNW = TEN*MAX(DIAGNL,ZEROOT)
+            ELSE
+              DIAGNW = DIAGNL + CRITMU/EIGLIM
+            ENDIF
+C
+            MACTIV = 0
+            DO I=1,NDIM
+              IF (ISTATV(I).GT.0)  MACTIV = MACTIV + 1
+            ENDDO
+            DO I=1,MCON
+              IF (ISTATC(I).GE.1 .AND. ISTATC(I).LE.3) MACTIV = MACTIV+1
+            ENDDO
+            NDOF = NDIM - MACTIV
+            IF(NDOF.EQ.0) THEN
+              DIAGNW = ONE
+            ELSE
+              DIAGNW = MIN(DIAGNW,ONE)
+            ENDIF
+C
+            DIAGMD = (DIAGNW-DIAGNL)*EIGLIM
+            CALL DGLMOD(NDIM,HMAT,JSTRH,DIAGMD)
+            DIAGNL = DIAGNW
+            GO TO 170
+C
+          ENDIF
+C
+        ENDIF
+C
+      ENDIF
+C
+C         SET THE LEVENBERG PARAMETER FOR THE NEXT ITERATION
+C
+      DIAGNL = DIAGNL + MAX(ZERO,CRITMU)/EIGLIM
+      DIAGNL = MIN(DIAGNL,ONE)
+C
+      IF(IOFLAG.GE.20.AND.LEVNIT.LT.MAXLVN.AND.CRITMU.GT.ZERO) THEN
+        LEVNIT = LEVNIT + 1
+        LEVNDY(LEVNIT) = BLANK
+        WRITE(LEVNDY(LEVNIT)(1:16),'(SP,1PG16.6)') DIAGNL
+        LEVNDY(LEVNIT)(20:45) = 'Indefinite reduced Hessian'
+      ENDIF
+C
+C         SAVE THE NUMBER OF MATRIX FACTORIZATIONS FOR OUTPUT
+C
+      IF(QPOPTN.EQ.'SPARSE') THEN
+        CALL CLKOUT(13,TIMKTF,XNMKTF)
+        NUMKTF = XNMKTF
+      ELSE
+        NUMKTF = NCHLFC
+      ENDIF
+C
+C ----------------------------------------------------------------------
+C
+C
+C         INITIALIZE LAGRANGE MULTIPLIERS TO QP MULTIPLIERS ON THE
+C         FIRST ITERATION--NOTE THAT FIRST ORDER MULTIPLIERS ARE 
+C         USED TO EVALUATE THE HESSIAN ON THE FIRST ITERATION.
+C
+      IF(IT.EQ.1.OR.RESET) THEN
+        DO KK = 1,MCON
+          VECLAM(KK) = VECMU(KK)
+        ENDDO
+        DO KK = 1,NDIM
+          VECNU(KK) = VECXI(MCON+KK)
+        ENDDO
+      ENDIF
+C
+      IF(IEREKT.EQ.0 ) 
+     $  CALL SAMSET(NDIM,ISTATC,ISTATV,ISTATO(NDIM+1),ISTATO,NSAME)
+C
+C         COMPUTE MULTIPLIER SEARCH DIRECTION:  XI = MU - LAMBDA
+C
+      VECXI(1:MCON) = VECMU(1:MCON) - VECLAM(1:MCON)
+C
+C         COMPUTE BOUND MULTIPLIER SEARCH DIRECTION
+C
+      SLPFAC = -ONE
+      PNORM = ZERO
+      DO I = 1,NDIM
+        PNORM = MAX(PNORM,ABS(VECP(I)))
+        VECXI(MCON+I) = VECXI(MCON+I) - VECNU(I)
+      ENDDO
+C
+ 240  CONTINUE
+C
+C         EITHER SET PENRHO TO ITS MINIMUM VALUE OR RETURN TO 
+C         ITERATIVE EVALUATION
+C
+      IF(ITRFLG.EQ.-1) THEN
+        GO TO 290
+      ELSE
+        PENRHO = ZEROOT
+        IF(LINEAR) PENRHO = ONE
+      ENDIF
+C
+C         COMPUTE SLACK VARIABLE AND SEARCH DIRECTION
+C
+      CALL MVPSPR(1,MCON,NDIM,GMAT,IROWG,JSTRG,VECP,WORK)
+C
+      DO I = 1,MCON
+C
+        VECSBR(I) = WORK(I) + CVEC(I)
+        IF(PENVEC(I).NE.ZERO) THEN
+          VECS(I) = CVEC(I)-VECLAM(I)/PENVEC(I) 
+        ELSE
+          VECS(I) = CVEC(I)
+        ENDIF
+C
+C         BOUND THE SLACK VARIABLES
+C
+        VECS(I) = MAX( CLWR(I), MIN(VECS(I),CUPR(I)) )
+C
+C         SLACK VARIABLE SEARCH DIRECTION
+C
+        VECQ(I) = VECSBR(I) - VECS(I) 
+C
+      ENDDO
+C
+C         COMPUTE BOUND SLACK VARIABLE AND SEARCH DIRECTION
+C
+      DO I = 1,NDIM
+C
+        MPI = MCON + I
+        VECSBR(MPI) = VECP(I) + XVEC(I)
+        IF(PENVEC(MPI).NE.ZERO) THEN
+          VECS(MPI) = XVEC(I)-VECNU(I)/PENVEC(MPI) 
+        ELSE
+          VECS(MPI) = XVEC(I)
+        ENDIF
+C
+C         BOUND THE SLACK VARIABLES
+C
+        VECS(MPI) = MAX( XLWR(I), MIN(VECS(MPI),XUPR(I)) )
+C
+C         SLACK VARIABLE SEARCH DIRECTION
+C
+        VECQ(MPI) = VECSBR(MPI) - VECS(MPI) 
+C
+      ENDDO
+C
+C         CONSTRUCT  ( C-S ) IN WORK OVERWRITING GZER AND CUPR
+C         AND COMPUTE TERMS IN THE SLOPE OF THE MERIT FUNCTION
+C         TERM1 = ((C-S)**T)*XI
+C         TERM2 = (MU**T)*Q
+C
+      TERM1 = ZERO
+      TERM2 = ZERO
+      TERM3 = ZERO
+      CSMAX = ZERO
+C
+      DO I = 1,MCON
+C
+        WORK(I) = CVEC(I) - VECS(I) 
+        IF(ABS(WORK(I)).LT.ZEROMN) WORK(I) = ZERO
+C
+C         IF THE PRODUCT VECXI*(C-S) IS POSITIVE, THEN THE MERIT
+C         FUNCTION CAN BE REDUCED BY CHANGING THE LAGRANGE MULTIPLIERS
+C         WITHOUT CHANGING THE VALUES OF XBAR.  THIS DISCONTINUOUS
+C         CHANGE IN LAMBDA PERMITS SOLUTION WITH A "ZERO LENGTH" STEP
+C         IN X WHILE TAKING A STEP OF LENGTH ONE IN LAMBDA.  
+C         EXPERIMENTAL TESTS SUGGEST THIS IS LESS EFFICIENT--
+C         HOWEVER THE FOLLOWING CARDS CAN BE INCLUDED IF A CASE
+C         IS DISCOVERED WHICH REQUIRES THIS (DELETE C....).
+C         A CASE DISCOVERED ON 11/14/20 (JTB)
+C
+        XICMS = WORK(I)*VECXI(I)
+C....
+        IF(XICMS.GT.ZERO) THEN
+C....
+          VECLAM(I) = VECMU(I)
+C....
+          VECXI(I) = ZERO
+C....
+        ENDIF
+C
+        TERM1 = TERM1 + XICMS
+        TERM2 = TERM2 + VECQ(I)*VECMU(I)
+        TERM3 = TERM3 + WORK(I)**4
+        CSMAX = MAX(CSMAX,ABS(WORK(I)))
+C
+      ENDDO
+C
+      DO I = MCON+1,MCON+NDIM
+C
+        WORK(I) = XVEC(I-MCON) - VECS(I) 
+        IF(ABS(WORK(I)).LT.ZEROMN) WORK(I) = ZERO
+C
+        XICMS = WORK(I)*VECXI(I)
+C....
+        IF(XICMS.GT.ZERO) THEN
+C....
+          VECNU(I-MCON) = VECXI(I) + VECNU(I-MCON)
+C....
+          VECXI(I) = ZERO
+C....
+        ENDIF
+C
+        TERM1 = TERM1 + XICMS
+        TERM2 = TERM2 + VECQ(I)*VECNU(I-MCON)
+        TERM3 = TERM3 + WORK(I)**4
+        CSMAX = MAX(CSMAX,ABS(WORK(I)))
+C
+      ENDDO
+C
+ 290  CONTINUE
+C
+C         HESSIAN IS POSITIVE DEFINITE -- COMPUTE PENALTY VECTOR
+C         MINIMIZE NORM OF PENVEC SUBJECT TO THE CONSTRAINT
+C         DF0 = -.5*D2F0.  THE SOLUTION IS GIVEN BY 
+C         PENVEC = A*SIGMA/((A**T)*A) PROVIDED SIGMA .GT. 0, 
+C         OTHERWISE PENVEC = PENRHO.  ALSO COMPUTE THE VALUE
+C         OF PENRHO WHERE THE SLOPE CONDITION HAS A DISCONTINITY
+C         IN THE DERIVATIVE--USE THIS POINT TO BEGIN THE SECANT
+C         SEARCH.
+C
+      MPN = MCON + NDIM
+      PENTRM = DOT_PRODUCT(WORK(1:MPN),WORK(1:MPN))
+      SIGTRM = -POINT5*D2F0 - TWO*TERM1 + TERM2 + ZEROOT
+      SIGMA =  SIGTRM - PENRHO*PENTRM
+      IF(ABS(PENTRM).GT.ZEROMN) THEN
+        PENLIM = SIGTRM/PENTRM
+      ELSE
+        PENLIM = ZERO
+      ENDIF
+      IF(TERM3.GT.ZEROMN) THEN
+        FACTR = MAX(SIGMA,ZERO)/TERM3
+      ELSE
+        FACTR = ZERO
+      ENDIF
+      DO I = 1,MCON+NDIM
+        PENVEC(I) = FACTR*WORK(I)**2 + PENRHO
+      ENDDO
+C
+C         COMPUTE SLOPE OF MERIT FUNCTION
+C         OVERWRITE THE WORK ARRAY CORRESPONDING TO XLWR
+C         NOTE THIS CALCULATION REPLACES THE FOLLOWING CODE:
+C
+C         CSTRCS = ZERO
+C         DO I = 1,MCON+NDIM
+C           CSTRCS = CSTRCS + PENVEC(I)*WORK(I)**2
+C         END DO
+C        DF0 = -D2F0  - TWO*TERM1 + TERM2 - CSTRCS
+C
+      DQDL =ZERO
+      DO I = 1,MCON
+        HATLAM = VECLAM(I) - PENVEC(I)*WORK(I)
+        WORK(MCON+NDIM+I) = HATLAM
+        DQDL = DQDL + VECQ(I)*HATLAM
+      ENDDO
+C
+      DO I = 1,NDIM
+        HATLAM = VECNU(I) - PENVEC(MCON+I)*WORK(MCON+I)
+        DQDL = DQDL + VECQ(MCON+I)*HATLAM
+      ENDDO
+C
+      CALL MVPSPR(11,NDIM,MCON,GMAT,IROWG,JSTRG,WORK(MCON+NDIM+1),
+     $    WORK(LCDPDL))
+C
+      DPDL = ZERO
+      DO I = 1,NDIM
+        II = LCDPDL + I - 1
+        WORK(II) = GVEC(I) - WORK(II) - VECNU(I) + 
+     $             PENVEC(MCON+I)*WORK(MCON+I)
+        DPDL = DPDL + VECP(I)*WORK(II)
+      ENDDO
+C
+      MPN = MCON + NDIM
+      DXIDL = -DOT_PRODUCT(VECXI(1:MPN),WORK(1:MPN))
+      DF0 = DPDL + DXIDL + DQDL
+C
+C
+C         CHECK THE SLOPE CONDITION TO SEE IF PENALTY WEIGHT IS OK
+C         IF IT IS OK GO ON--OTHERWISE ADJUST PENALTY WEIGHT
+C
+C
+      IF(SLPFAC.LT.ZERO) THEN
+        OCNORM = DAMAX(NDIM,WORK(LCDPDL),1)
+        SLPLIM = MAX(ONE,MIN(CVNORM/MAX(ZEROMN,OCNORM),ONEEP4))
+        SLPFAC = FOUR*SLPLIM
+      ENDIF
+C
+      IF( (DF0.LT.-POINT5*D2F0 .AND. ITRFLG.NE.-1) .OR.
+     $    (PNORM.LT.ZEROOT .AND. ABS(QUAD).LT.ZEROOT) 
+     $    .OR. CSMAX .EQ. ZERO ) GO TO 350
+C
+C         SLOPE CONDITION ABSOLUTE TOLERANCE
+C
+      PENTOL = ONEEM5
+C
+C         LARGEST POSSIBLE VALUE OF PENRHO
+C
+      PENMAX = MAX(BIGBND,ONE/D2F0**2)
+C
+C         EVALUATE SLOPE CONDITION AT CURRENT POINT
+C         I.E.  DF0 = -SLPFAC*(POINT5+PENTOL)*D2F0 
+C         WHERE SLPFAC.GE.1 IS AN ARBITRARY MARGIN OF SAFETY
+C
+      SLPCON = DF0/D2F0 + SLPFAC*(POINT5+PENTOL)
+C
+C         IF SLOPE IS SUFFICIENTLY NEGATIVE SAVE PENALTY WEIGHT 
+C         TO USE IF SECANT SEARCH FAILS
+C
+      IF(DF0.LE.-POINT5*D2F0) THEN
+        PENOK = PENRHO
+      ELSE
+        PENOK = -ONE
+      ENDIF
+C
+      IF(ITRFLG.EQ.-1) GO TO 340
+C
+C         CURRENT VALUE OF PENRHO IS TOO SMALL 
+C
+      PENLWR = PENRHO
+      SLPLWR = SLPCON
+      PENUPR = PENMAX
+      SLPUPR = -SLPCON
+      IF(PENLIM.GT.ZEROOT) THEN
+        PENRHO = PENLIM
+      ELSE
+        PENRHO = ONE
+      ENDIF
+C
+ 340  CONTINUE
+C
+      CALL SECANT(PENRHO,SLPCON,PENLWR,PENUPR,SLPLWR,SLPUPR,PENTOL,
+     $    20,ITRFLG) 
+C
+      IF(ITRFLG.EQ.-1) THEN
+C
+C         WHEN ITRFLG = -1 EVALUATE THE SLOPE CONDITION AND THEN REENTER
+C         SECANT ROUTINE
+C
+        GO TO 240
+C
+      ELSEIF(ITRFLG.EQ.1) THEN
+C
+C         NORMAL TERMINATION 
+C
+        GO TO 350
+C
+      ELSE
+C
+C         ABNORMAL TERMINATION
+C
+        IF(PENOK.EQ.-ONE) THEN
+C
+          IF(DIAGNL.EQ.ONE) THEN
+C
+C          SLOPE CONDITION CANNOT BE SATISFIED
+C
+            ITERM = -9
+            IF(IPC.GE.10) WRITE(IPU,1006)
+            GO TO 10000
+C
+          ELSE
+C
+C           AUGMENT THE HESSIAN DIAGONAL 
+C
+            IF(CRITMU.LE.ZERO) THEN
+              DIAGNW = TEN*MAX(DIAGNL,ZEROOT)
+            ELSE
+              DIAGNW = DIAGNL + CRITMU/EIGLIM
+            ENDIF
+C
+            MACTIV = 0
+            DO I=1,NDIM
+              IF (ISTATV(I).GT.0)  MACTIV = MACTIV + 1
+            ENDDO
+            DO I=1,MCON
+              IF (ISTATC(I).GE.1 .AND. ISTATC(I).LE.3) MACTIV = MACTIV+1
+            ENDDO
+            NDOF = NDIM - MACTIV
+            IF(NDOF.EQ.0) THEN
+              DIAGNW = ONE
+            ELSE
+              DIAGNW = MIN(DIAGNW,ONE)
+            ENDIF
+C
+            DIAGMD = (DIAGNW-DIAGNL)*EIGLIM
+            CALL DGLMOD(NDIM,HMAT,JSTRH,DIAGMD)
+            DIAGNL = DIAGNW
+            GO TO 170
+C
+          ENDIF
+C
+        ELSE
+C
+C         USE BACKUP PENALTY
+C
+          PENRHO = PENOK
+          GO TO 350
+C
+        ENDIF
+C
+      ENDIF
+C
+ 350  CONTINUE
+C
+C ----------------------------------------------------------------------
+C
+C         COMPUTE PREDICTED MINIMUM VALUE 
+C
+      FMIN = FNOM + QUAD 
+C
+10000 CONTINUE
+C
+C
+ 1001 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....HESSIAN HAS BEEN RESET AND
+     $ KT MATRIX IS SINGULAR',T106,'*')
+ 1002 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....HESSIAN HAS BEEN RESET AND
+     $ KT MATRIX HAS WRONG INERTIA',T106,'*')
+ 1003 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....HESSIAN HAS BEEN RESET AND
+     $ KT MATRIX IS ILL-CONDITIONED',T106,'*')
+ 1004 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....HESSIAN HAS BEEN RESET AND
+     $ SCHUR COMPLEMENT HAS WRONG INERTIA',T106,'*')
+ 1005 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....HESSIAN HAS BEEN RESET AND 
+     $ CURVATURE IS NEGATIVE',T106,'*')
+ 1006 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....SLOPE CONDITION CANNOT BE 
+     $SATISFIED',T106,'*')
+ 1007 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....QP ERROR RETURN; IER =',
+     $    I6,T106,'*')
+ 1008 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....HESSIAN HAS BEEN RESET AND
+     $ FILL WAS EXCESSIVE',T106,'*')
+ 1009 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....HESSIAN HAS BEEN RESET AND
+     $ KT MATRIX IS ILL-CONDITIONED WITH RELAXED FEASIBILITY',T106,'*')
+ 1010 FORMAT(T3,'*',T106,'*'/T3,'*',T11,'.....HESSIAN HAS BEEN RESET AND
+     $ CONSTRAINTS ARE INCONSISTENT',T106,'*')
+      RETURN
+      END

@@ -1,0 +1,82 @@
+C-------------------------------------------------------------------------------
+c
+c  socxcm.cmn (lower case) is a modification of the common
+c  SOCXCM.CMN (upper case) created on 02/17/20 jtb.
+c
+C  WARNING: If this common block is changed in any manner, check
+C  subroutine CTLDEF to see if changes are needed.
+C
+C             SOCX real variable common.
+C
+      INTEGER  NCTLR
+      PARAMETER  (NCTLR=11)
+      COMMON /OCSPRR/
+     &   DTAUX,   OBJCTL,  ODETOL,  PRTMSD,  PRTMXD,         
+     &   PRTSFD,  SMLTOL,  TOLJSD,  TOLM5A,  TOLM5R,
+     &   TAUTOL,
+C             non-input variables (>NCTLR)
+     &   BIGBND
+      DOUBLE PRECISION
+     &   DTAUX,   OBJCTL,  ODETOL,  PRTMSD,  PRTMXD,         
+     &   PRTSFD,  SMLTOL,  TOLJSD,  TOLM5A,  TOLM5R,
+     &   TAUTOL,
+     &   BIGBND
+C
+C             SOCX integer variable common.
+C
+      INTEGER  NCTLI,NLINEI,NERSAV
+      PARAMETER  (NCTLI=30,NLINEI=66,NERSAV=10)
+      COMMON /OCSPRI/ NUMIER,
+     &   IDSCPH,  IDSCND,  IDSCVR,  IDSCFN,  IDTSFD,
+     &   IPFAUX,  IPFSFD,  IPRSFD,  IPGRD,    IPNLP,
+     &    IPODE,  IPUAUX,  IPUOCP,  IRSTRT,  ISCALE,
+     &   ISFHES,  ISFINP,  ISFRST,  ISFSCL,  M5DTYP,         
+     &   MITODE,  NPTAUX,  NIWOPI,  NRWOPI,  MXDATA,
+     &   MXPARM,  MXPCON,  MXSTAT,  MXTERM,  MXNPHS,
+C             integer pointers to DSCRBI array
+     &   IPDSCI(NCTLI+1),
+C             accumulated errors in optimal control problem
+     &   NUMERR,IEROCP(NERSAV),
+C             integer output flag array
+     &   IFLOUT(26),
+C             non-input variables (number of evaluations)
+     &   NFCALL,  NFEVAL,  NGEVAL,  NHEVAL
+      INTEGER     NUMIER,
+     &   IDSCPH,  IDSCND,  IDSCVR,  IDSCFN,  IDTSFD,
+     &   IPFAUX,  IPFSFD,  IPRSFD,  IPGRD,    IPNLP,
+     &    IPODE,  IPUAUX,  IPUOCP,  IRSTRT,  ISCALE,
+     &   ISFHES,  ISFINP,  ISFRST,  ISFSCL,  M5DTYP,         
+     &   MITODE,  NPTAUX,  NIWOPI,  NRWOPI,  MXDATA,
+     &   MXPARM,  MXPCON,  MXSTAT,  MXTERM,  MXNPHS,
+C             integer pointers to DSCRBI array
+     &   IPDSCI,
+C             accumulated errors in optimal control problem
+     &   NUMERR,IEROCP,
+C             integer output flag array
+     &   IFLOUT,
+C             non-input variables (number of evaluations)
+     &   NFCALL,  NFEVAL,  NGEVAL,  NHEVAL
+C
+C             SOCX character variable common.
+C
+      INTEGER  NCTLC,NSOCOP,NLINEC
+      PARAMETER  (NCTLC=9,NSOCOP=19,NLINEC=NSOCOP+21)
+      COMMON /OCSPRC/ 
+     &  SOCOUT, SPRTHS, NLPALG, NLPOMR,  KEYDPL,  
+     &  RHSTMP, RSTFIL, SCLFIL, MRFMET, ODENAM(2),
+     &  SYMCTLC(NCTLC), SYMCTLI(NCTLI), SYMCTLR(NCTLR),
+     &  DSCRBC(NLINEC), DSCRBI(NLINEI), DSCRBR(NCTLR),
+     &  ERRSUB(NERSAV), ERRTXT(NERSAV)
+      CHARACTER(LEN=52)  SOCOUT
+      CHARACTER(LEN=6)  SPRTHS,NLPALG,NLPOMR,MRFMET
+      CHARACTER(LEN=8)  KEYDPL
+      CHARACTER(LEN=80) RHSTMP,RSTFIL,SCLFIL
+      CHARACTER(LEN=60) ODENAM
+      CHARACTER(LEN=6)  SYMCTLC,SYMCTLI,SYMCTLR
+      CHARACTER(LEN=50) DSCRBC,DSCRBI,DSCRBR
+      CHARACTER(LEN=60) ERRSUB
+      CHARACTER(LEN=100) ERRTXT
+C-------------------------------------------------------------------------------
+
+
+

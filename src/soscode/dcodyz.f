@@ -1,0 +1,107 @@
+C
+C
+C
+      SUBROUTINE DCODYZ( MINEQL, NROW, NDIM, NFREE0, IFREE0, 
+     .                   INSHUR, K, KMAX, NEQNS, NX, IPC, IPU,
+     .                   Y, Z, X0, X, QSTEP, PI, ALMSHR, IER )
+C
+C ======================================================================
+C     DCODYZ===>dcodyz   J.T. BETTS
+C ======================================================================
+C
+C
+C     ROUTINE TO UNSCRAMBLE THE SOLUTION VECTORS | y |
+C                                                | z |
+C     OF THE AUGMENTED KT SYSTEM
+C
+C     | K0     U | | y | = | f |
+C     | (U)TR  V | | z |   | w | ,
+C
+C     WHERE y REPRESENTS THE INITIALLY FREE VARIABLES AND THE
+C     LAGRANGE MULTIPLIERS (PI) FOR THE GENERAL CONSTRAINTS AND
+C     z REPRESENTS A MIXTURE OF STEPS FOR VARIALBES FREED BY UPDATES
+C     AND MULTIPLIERS (ALMSHR) FOR VARIABLES FIXED BY UPDATES.
+C
+      DOUBLE PRECISION ZERO
+      PARAMETER ( ZERO = 0.0D0 )
+C     
+      INTEGER I, MINEQL, NROW, NDIM, IFR
+      INTEGER NFREE0, IDEX, KK, K, KMAX, NEQNS, NX
+      INTEGER IPC, IPU, IER
+      INTEGER IFREE0(NX), INSHUR(KMAX)
+C
+      DOUBLE PRECISION X(NX), X0(NX), QSTEP(NX)
+C         DOUBLE PRECISION Y(NEQNS), PI(NROW)
+      DOUBLE PRECISION Y(NEQNS), PI(*)
+      DOUBLE PRECISION Z(KMAX), ALMSHR(NX)
+C
+C
+      IER = 0
+C
+C     SET DEFAULT PSTEP = 0. SINCE X0 + QSTEP = X + PSTEP,
+C     THIS REQUIRES SETTING DEFAULT QSTEP = X - X0.
+C     ALSO, INITIALIZE ALMSHR TO ZERO.
+C
+      DO I = 1, MINEQL + 1 + NDIM
+        QSTEP(I) = X(I) - X0(I)
+        ALMSHR(I) = ZERO
+      enddo
+C
+      DO I = 1, MINEQL + 1 + NDIM
+        IFR = IFREE0(I)
+C
+C       FIRST PART OF y DETERMINES SUBSPACE STEP (FROM X0) OF
+C       FREE VARS AT PREVIOUS KT FACTORIZATION.
+C
+        IF ( IFR .GT. 0 ) THEN
+C         I-TH VAR WAS INITIALLY FREE.
+C
+          QSTEP(I) = -Y(IFR)
+        ENDIF
+C
+      enddo
+C
+C     SECOND PART OF Y DETERMINES THE NEW VALUES FOR
+C     THE LAGRANGE MULTIPLIERS (PI) FOR THE GENERAL
+C     LINEAR CONSTRAINTS.
+C       
+      DO I = 1, NROW
+        PI(I) = Y(NFREE0 + I)
+      enddo
+C
+C
+C     THE z VECTOR DETERMINES PART OF QSTEP AND ALMSHR, WHICH
+C     IS THE PART OF (ALMBDA)FX CORRESPONDING TO VARS FIXED BY
+C     SCHUR-COMPLEMENT UPDATES.
+C
+      kkloop: DO KK = 1, K
+        IDEX = INSHUR(KK)
+C
+        IF ( IDEX .EQ. 0 .OR.
+     .       ABS(IDEX) .GT. MINEQL + 1 + NDIM ) THEN
+C
+          IER = 1
+          IF ( IPC .GT. 0 ) THEN
+            WRITE(IPU,*) ' DCODYZ: OUT OF RANGE INSHUR VALUE= ',
+     .                   ' FOR SCHUR UPDATE NO. ', KK
+          ENDIF
+C
+          exit kkloop
+        ENDIF
+C
+        IF ( IDEX .GT. 0 ) THEN
+C         VAR IDEX FREED AT THE KK-TH SCHUR-COMPLEMENT UPDATE.
+C
+          QSTEP(IDEX) = -Z(KK)
+C
+        ELSEIF ( IDEX .LT. 0 ) THEN
+C         VAR |IDEX| FIXED AT THE KK-TH SCHUR-COMPLEMENT UPDATE.
+C
+          ALMSHR( ABS(IDEX) ) = Z(KK)
+        ENDIF
+C
+      enddo kkloop
+C
+C
+      RETURN
+      END

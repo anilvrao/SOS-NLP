@@ -1,0 +1,80 @@
+
+      SUBROUTINE FMERIT(CVEC,CLWR,CUPR,XVEC,XLWR,XUPR,MCON,NDIM,CONTOL,
+     $    PHI,IFERR)
+C
+C ======================================================================
+C     FMERIT===>fmerit   J.T. BETTS
+C ======================================================================
+C
+C         PURPOSE:  COMPUTE FEASIBLE REGION MERIT FUNCTION 
+C
+C         INPUT:
+C
+C           CVEC    CONSTRANT VECTOR (MCON)
+C           CLWR    CONSTRAINT LOWER BOUND (MCON)
+C           CUPR    CONSTRAINT UPPER BOUND (MCON)
+C           XVEC    VARIABLE VECTOR (NDIM)
+C           XLWR    VARIABLE LOWER BOUND (NDIM)
+C           XUPR    VARIABLE UPPER BOUND (NDIM)
+C           MCON    NUMBER OF CONSTRAINTS
+C           NDIM    NUMBER OF VARIABLES
+C           CONTOL  CONSTRAINT TOLERANCE
+C
+C         OUTPUT:
+C
+C           PHI     SCALED CONSTRAINT ERROR
+C           IFERR   FUNCTION ERROR FLAG
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+      DIMENSION CVEC(MCON),CLWR(MCON),CUPR(MCON),XVEC(NDIM),
+     $    XLWR(NDIM),XUPR(NDIM)
+C
+      COMMON /KONSTN/ 
+     *  ZEROMN  ,ZEROOT  ,BIGNUM  ,BGROOT  ,BIGBND  ,BIGCND
+C
+      PARAMETER (ZERO=0.0D0)
+C
+C         CONSTRUCT CONSTRAINT ERROR 
+C
+      IF(MCON.NE.0) BGTRM = BGROOT/SQRT(DBLE(MCON))
+      PHI = ZERO
+      DO I = 1,MCON
+C
+        ABSC = ZERO
+        IF(CLWR(I).EQ.CUPR(I)) THEN
+          ABSC = ABS(CVEC(I)-CLWR(I))
+        ELSEIF(CVEC(I).LT.CLWR(I)-CONTOL) THEN
+          ABSC = ABS(CVEC(I)-CLWR(I))
+        ELSEIF(CVEC(I).GT.CUPR(I)+CONTOL) THEN
+          ABSC = ABS(CVEC(I)-CUPR(I))
+        ENDIF
+C
+        IF(ABSC.GT.BGTRM) THEN
+          IFERR = 1
+          RETURN
+        ELSE
+          PHI = PHI + ABSC*(ABSC/CONTOL)
+        ENDIF
+C
+      ENDDO
+C
+C         INCLUDE CONTRIBUTION FOR BOUND VIOLATION 
+C
+      DO I = 1,NDIM
+C
+        ABSC = ZERO
+        IF(XLWR(I).EQ.XUPR(I)) THEN
+          ABSC = ABS(XVEC(I)-XLWR(I))
+        ELSEIF(XVEC(I).LT.XLWR(I)-CONTOL) THEN
+          ABSC = ABS(XVEC(I)-XLWR(I))
+        ELSEIF(XVEC(I).GT.XUPR(I)+CONTOL) THEN
+          ABSC = ABS(XVEC(I)-XUPR(I))
+        ENDIF
+C
+        PHI = PHI + ABSC*(ABSC/CONTOL)
+C
+      ENDDO
+C
+      RETURN
+      END

@@ -1,0 +1,18 @@
+
+C-------------------------------------------------------------------------------
+      PARAMETER (MTC=600)
+      COMMON /TSTODE/ TPSEED(MTC),ITPROB(MTC),ITPODE(MTC),ITPCLS(MTC),
+     &                ITPMET(MTC),ITPSTG(MTC),ITPGRD(MTC),IPROB,NTC,
+     &                ITPALG(MTC),PRNAME(MTC)
+      DOUBLE PRECISION TPSEED
+      INTEGER ITPROB,ITPODE,ITPCLS,ITPMET,ITPSTG,ITPGRD,IPROB,NTC
+      CHARACTER(LEN=4) ITPALG
+      CHARACTER(LEN=6) PRNAME
+c
+      character(len=80) pdatapath
+      common /pthcmn/ pdatapath
+C
+C         ODE TEST PROBLEM COMMON
+C         CHANGES TO THIS REQUIRE RECOMPILING ALL PROBLEMS AND DRIVERS
+C
+C-------------------------------------------------------------------------------

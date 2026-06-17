@@ -1,0 +1,623 @@
+
+c                      general communication area
+c                      --------------------------
+
+c     global machine dependent constants
+c     ----------------------------------
+
+c     bfrsiz     internal buffer size used by pseudo word addressable
+c                i/o routines getwa, putwa, wclose, and wopen.
+c     lncomm     length of communication area
+c     mxrecd     maximum number of i/o records allocated for 
+c                out-of-core matrix assembly processing.
+
+      integer         bfrsiz, lncomm, mxrecd 
+
+c     parameter     ( bfrsiz = 1024,  lncomm = 300,
+      parameter     ( bfrsiz = 2048,  lncomm = 300,
+     1                mxrecd = 10000                      )
+
+c     pointers into the communication area for global
+c     system scalar information
+c     -----------------------------------------------
+
+c        1       stage
+c        2       matrix type
+c        3       not used - reserved for method
+c        4       workspace in use
+c        5       workspace needed for next phase
+c        6       maximum amount of workspace used
+c        7       message level
+c        8       output unit
+c        9       floating point relative precision (epsilon)
+c       10       largest representable floating point number (symmetric
+c                range)
+
+      integer         qstage, qmxtyp, qinuse, qneeds, qmxuse, qmsglv,
+     1                qoutpu, qepsln, qmcinf
+
+      parameter     ( qstage =   1,   qmxtyp =   2,   qinuse =   4,
+     1                qneeds =   5,   qmxuse =   6,   qmsglv =   7,
+     2                qoutpu =   8,   qepsln =   9,   qmcinf =  10  )
+
+c     i/o files
+c     ---------
+
+c       11       sequential i/o file no. 1 -- multifrontal scratch
+c       12       sequential i/o file no. 2 -- lanczos solution file
+c       13       sequential i/o file no. 3 -- lanczos scratch file
+c       15       sequential i/o file no. 4 -- unused
+c       15       sequential i/o file no. 5 -- unused
+c       16       direct access i/o file no. 1 -- multifrontal factor
+c       17       direct access i/o file no. 2 -- multifrontal scratch
+c       18       direct access i/o file no. 3 -- lanczos eigenvectors
+
+      integer         qsqfl1, qsqfl2, qsqfl3, qsqfl4, qsqfl5, 
+     1                qwafl1, qwafl2, qwafl3, qwafl4, qwafl5,
+     2                qevfil, qqfile, qmqfil
+
+      parameter     ( qsqfl1 =  11,       qwafl1 =  16,   
+     1                qsqfl2 =  12,       qwafl2 =  17,
+     2                qsqfl3 =  13,       qwafl3 =  18,  
+     3                qsqfl4 =  14,       qwafl4 =  19,
+     4                qsqfl5 =  15,       qwafl5 =  20,
+     5
+     6                qqfile = qsqfl4,    qmqfil = qsqfl5,
+     7                qevfil = qwafl3                      )
+
+c     original matrix statistics
+c     --------------------------
+
+c       21       neqns   number of equations
+c       22       nzla    number of nonzeros in strict lower triangle 
+c                        of  a
+c       23       nzlb    number of nonzeros in strict lower triangle 
+c                        of  b
+c       24       nzlab   number of nonzeros in strict lower triangle 
+c                        of  a  +  b
+
+
+      integer         qneqns, qnzla, qnzlb, qnzab
+
+      parameter     ( qneqns =  21,   qnzla =  22,   qnzlb =  23,
+     1                qnzab  =  24  )
+
+c     ordering and symbolic factorization parameters and statistics
+c     -------------------------------------------------------------
+
+c       25       maxzer  ordering relaxation parameter
+c       26       lwksym  workspace required for symbolic factorization
+
+      integer         qmaxze, qlwksy
+
+      parameter     ( qmaxze =  25,   qlwksy =  26  )
+
+c     compressed matrix statistics
+c     ----------------------------
+
+c       27       ncomp   number of compressed nodes
+c       28       nzcomp  number of compressed nonzeros in strict 
+c                        lower triangle of a
+
+      integer         qncomp, qnzcmp
+
+      parameter     ( qncomp =  27,   qnzcmp =  28  )
+
+c     factorization statistics
+c     ------------------------
+
+c       31       nzlf    number of nonzeroes in strict lower triangle 
+c                        of  l
+c       32       nsuper  number of fronts (supernodes)
+c       33       nsnind  total number of frontal indices
+c       34               not used
+c       35       mxnind  max. number of frontal indices (mxlfrt)
+c                        (size of front)
+c       36       snmson  max. number of frontal sons
+c       37       mstack  depth of multifrontal stack
+c       38       stkstr  amount of real stack storage required for 
+c                        multifrontal factorization
+c       39       mxtri   max. size of elimination triangle
+c       40       mfront  max. size of elimination front
+c       41       mxtotf  size of largest elimination area for a 
+c                        frontal matrix
+c       42       lwkifs  workspace required for in-core numeric 
+c                        factor/solve
+c       43       mxstck  maximum length of stack used during the   
+c                        factorization with pivoting
+c       44       nzlf2   number of nonzeroes in strict lower triangle
+c                        of  l  after pivoting
+c       45       nsnin2  number of frontal indices after pivoting
+c     
+c       46       mffdyn  static length (no pivoting) of dynamic arrays
+c                        required for multifrontal factorization
+c       47       mfsdyn  length of dynamic arrays required for 
+c                        multifrontal solution
+c       48       nzlf8   nzlf2 for lanczos first saved factor
+c       49       nzlf9   nzlf2 for lanczos second saved factor
+c       50       nsnin8  nsnin2 for lanczos first saved factor
+c       51       nsnin9  nsnin2 for lanczos second saved factor
+c       52       mfwpt8  mfwpt1 for lanczos first saved factor
+c       53       mfwpt9  mfwpt1 for lanczos second saved factor
+c       54       lwkofs  workspace required for out-of-core numeric 
+c                        factor/solve
+
+      integer         qnzlf,  qnsupe, qnsnin, qmxnin, qsnmso,
+     1                qmstac, qstkst, qmxtri, qmfron, qmxtot, qlwkif,
+     2                qnzlf2, qnsni2, qmxstk, qmffdy, qmfsdy, qnzlf8,
+     3                qnzlf9, qnsni8, qnsni9, qmfwp8, qmfwp9, qlwkof
+
+      parameter     ( qnzlf  =  31,   qnsupe =  32,   qnsnin =  33,
+     1                                qmxnin =  35,   qsnmso =  36,
+     2                qmstac =  37,   qstkst =  38,   qmxtri =  39,
+     3                qmfron =  40,   qmxtot =  41,   qlwkif =  42,
+     4                qnzlf2 =  43,   qnsni2 =  44,   qmxstk =  45,
+     5                qmffdy =  46,   qmfsdy =  47,   qnzlf8 =  48,
+     6                qnzlf9 =  49,   qnsni8 =  50,   qnsni9 =  51,
+     7                qmfwp8 =  52,   qmfwp9 =  53,   qlwkof =  54 ) 
+
+c     temporary pointers
+c     ------------------
+
+c       55       qtemp1
+c       56       qtemp2
+c       57       qtemp3
+c       58       qtemp4
+c       59       qtemp5
+c       60       qtemp6
+
+      integer         qtemp1, qtemp2, qtemp3, qtemp4, qtemp5, qtemp6
+
+      parameter     ( qtemp1 =  55,   qtemp2 =  56,   qtemp3 =  57,
+     1                qtemp4 =  58,   qtemp5 =  59,   qtemp6 =  60  )
+
+c     workspace pointers (memory mapping) -- all of the variables
+c                        below are the addresses of the beginnings
+c                        of the arrays with the corresponding names
+c     -------------------------------------------------------------
+
+c       61       xadj    pointer array for structure of lower triangle
+c                        of a (neqns+1)
+c       62       adjncy  some representation of the lower triangle of a 
+c                        (nzla)
+c       63       perm    permutation array - new to old (neqns)
+c       64       invp    inverse permutation array - old to new (neqns)
+c       65       xsup    frontal pointer array (nsuper+1)
+c       66       nassmb  number of frontal assemblies per front
+c                        (nsuper)
+c       67       xlindx  pointer for indices of l array (nsuper+1)
+c       68       lindx   local or work indices of l (nsnind)
+c       69       diag    diagonal of a or l (neqns)
+c       70       ofdiag  values of a or l (nzlf)
+c       71       acolst  column start for matrix a (k) for lanczos
+c       72       arowin  row indicies for matrix a (k) for lanczos
+c       73       avalue  values for matrix a (k) for lanczos
+c       74       bcolst  column start for matrix b (m) for lanczos
+c       75       browin  row indicies for matrix b (m) for lanczos
+c       76       bvalue  values for matrix b (m) for lanczos
+c       77       pvtblk  pivoting vector for multifrontal
+c       77       adiag   diagonal values for matrix  b (m)  for lanczos
+c       78       bdiag   diagonal values for matrix  b (m)  for lanczos
+c       79       pvtblk  pivoting vector for multifrontal
+c       80       lindxg  global indices of  l  before factorization
+c       81       lndxg2  global indices of  l  after factorization
+c       82       arindx  relative of indices of a used in mf assembly
+c       83       lnz     values of l
+c       84       xsup2   frontal partition pointer array after
+c                        factorization
+c       85       xlndx2  indices pointer array after factorization
+c       86       sup     frontal partition after factorization
+c       87       invsup  inverse of sup
+c       88       lwork   amount of workspace currently allocated
+c       89       wrkptr  pointer to dynamically allocated storage
+c       90       lindxa  local indices for a (k) for lanczos
+c       91       lindxb  local indices for b (m) for lanczos
+c       92       mfwork  pointer to multifrontal factorization
+c                        workspace within lanczos workspace
+c       93       mfwrk1  pointer to active multifrontal factorization
+c                        workspace within lanczos workspace
+c       94       uptri   values for upper triangle for unsymmetric
+c                        matrices
+c       95       unz     nonzeroes of u (upper triangluar factor
+c                        for unsymmetric matrices)
+
+      integer         qxadj,  qadjnc, qperm,  qinvp,  qxsup,  qnassm,
+     1                qxlind, qlndxl, qdiag,  qofdia, qacols, qarowi,
+     2                qavalu, qbcols, qbrowi, qbvalu, qadiag, qbdiag, 
+     3                qpivot, qlndxg, qlndg2, qarndx, qlnz  , qxsup2,
+     4                qxlnd2, qsup,   qinvsu, qlwork, qwrkpt, qlndxa, 
+     5                qlndxb, qmfwrk, qmfwr1, quptri, qunz
+
+      parameter     ( qxadj  =  61,   qadjnc =  62,   qperm  =  63,
+     1                qinvp  =  64,   qxsup  =  65,   qnassm =  66,
+     2                qxlind =  67,   qlndxl =  68,   qdiag  =  69,
+     3                qofdia =  70,   qacols =  71,   qarowi =  72,
+     4                qavalu =  73,   qbcols =  74,   qbrowi =  75,
+     5                qbvalu =  76,   qadiag =  77,   qbdiag =  78, 
+     6                qpivot =  79,   qlndxg =  80,   qlndg2 =  81, 
+     7                qarndx =  82,   qlnz   =  83,   qxsup2 =  84, 
+     8                qxlnd2 =  85,   qsup   =  86,   qinvsu =  87, 
+     9                qlwork =  88,   qwrkpt =  89,   qlndxa =  90, 
+     A                qlndxb =  91,   qmfwrk =  92,   qmfwr1 =  93,
+     B                quptri =  94,   qunz   =  95 )
+
+c     numerical characterizations of matrix
+c     -------------------------------------
+
+c       96       cond   -- estimate of 1 norm condition number
+
+      integer         qcndnm
+
+      parameter     ( qcndnm =  96     )
+
+c     additional matrix statistics
+c     ----------------------------
+
+c       98       mxanzf  -- max. no. of org. nonzeroes in a front
+
+      integer         qmxanz
+
+      parameter     ( qmxanz =  98     )
+
+c     additional factor save locations for lanczos
+c     --------------------------------------------
+
+c       99       lndg28  pointer to lindx2 for first savd factor
+c      100       lndg29  pointer to lindx2 for second saved factor
+
+      integer         qlnd28, qlnd29
+
+      parameter     ( qlnd28 =  99,   qlnd29 = 100 )
+
+c     timing information
+c     ------------------
+
+c      101       cpu time for matrix structure input
+c      102       cpu time for ordering
+c      103       cpu time for symbolic factorization
+c      104       cpu time for matrix value input
+c      105       cpu time for numeric factorization
+c      106       cpu time for numeric solution
+c      107       cpu time for matrix multiplication
+c      108       wall time for matrix structure input
+c      109       wall time for ordering
+c      110       wall time for symbolic factorization
+c      111       wall time for matrix value input
+c      112       wall time for numeric factorization
+c      113       wall time for numeric solution
+c      114       wall time for matrix multiplication
+
+      integer         qinptm, qordtm, qsfctm, qvaltm, qfcttm, qslvtm,
+     1                qmxmtm, qinpwl, qordwl, qsfcwl, qvalwl, qfctwl, 
+     2                qslvwl, qmxmwl
+
+      parameter     ( qinptm = 101,   qordtm = 102,   qsfctm = 103,
+     1                qvaltm = 104,   qfcttm = 105,   qslvtm = 106,
+     2                qmxmtm = 107,   qinpwl = 108,   qordwl = 109,
+     3                qsfcwl = 110,   qvalwl = 111,   qfctwl = 112,
+     4                qslvwl = 113,   qmxmwl = 114   )
+
+c     operation counts
+c     ----------------
+
+c      115       factorization operation count (one factor)
+c      116       solution operation count (one solve)
+c      117       matrix multiplication operation count (one multiply)
+c      118       total factorization operation count
+c      119       total solution operation count
+c      120       total matrix multiplication operation count
+
+       integer   qfctop, qslvop, qmxmop, qtfcop, qtslop, qtmxop
+
+       parameter    ( qfctop = 115,   qslvop = 116,   qmxmop = 117,
+     1                qtfcop = 118,   qtslop = 119,   qtmxop = 120 )
+
+c     lanczos scalar control information
+c     ---------------------------------
+
+c      121       stage for input of b for lanczos
+c      122       flag for matrix type of b (for lanczos)
+c                = 1  general sparse
+c                = 2  general sparse, same as a (k)
+c                = 3  diagonal
+c                = 4  identity
+c      123       spectral transformation for lanczos
+c                = 1  vibration
+c                = 2  buckling
+c                = 3  ordinary
+c      124       pfound -- number of confirmed eigenvalues
+c      125       pdiscd -- number of discarded eigenvalues
+c      126       blksiz -- block size used
+c      127       mxvect -- maximum number of vectors allowed
+c      128       p      -- number of eigenvectors requested
+c      129       mxblks -- maximum number of block steps
+c      130       istmlt -- system has time limit capability
+c      131       mfwlen -- length of workspace allowed to
+c                          multifrontal factorization
+c      132       tolact -- user specified accuracy tolerance
+c                          to dsevex.
+c      133       smichk -- check for loss of orthogonalization
+c                          when right hand side matrix is only
+c                          a seminorm
+
+      integer         qstagb, qbmxty, qtrnsf, qpfnd , qpdscd, qblksz, 
+     1                qmxvct, qp    , qmxblk, qtmlmt, qmfwln, qtolac,
+     2                qsmchk
+
+      parameter     ( qstagb = 121,  qbmxty = 122,  qtrnsf = 123, 
+     1                qpfnd  = 124,  qpdscd = 125,  qblksz = 126, 
+     2                qmxvct = 127,  qp     = 128,  qmxblk = 129,
+     3                qtmlmt = 130,  qmfwln = 131,  qtolac = 132,
+     4                qsmchk = 133 )
+
+c     work storage pointers for compressed representation
+c     ---------------------------------------------------
+
+c      134       xrowls  pointer into nodlst 
+c      135       rowlst  list of column numbers for each compressed node
+c      136       cmpmap  map of org. column numbers to compressed nodes
+c      137       permc   compressed perm vector - new to old (ncomp)
+c      138       invpc   compressed invp vector - old to new (ncomp)
+c      139       xpanel  pointer into panel representation
+
+      integer         qxrwls, qrwlst, qcmpmp, qpermc, qinvpc,
+     1                qxpanl
+
+      parameter     ( qxrwls = 134,  qrwlst = 135,  qcmpmp = 136,
+     1                qpermc = 137,  qinvpc = 138,  qxpanl = 139 )
+
+c     statistics for i/o files
+c     ------------------------
+
+c      141       length of sequential i/o file no. 1 
+c      142       length of sequential i/o file no. 2
+c      143       length of sequential i/o file no. 3
+c      144       length of sequential i/o file no. 4
+c      145       length of sequential i/o file no. 5
+c      146       length of direct access i/o file no. 1
+c      147       length of direct access i/o file no. 2
+c      148       length of direct access i/o file no. 3
+c      149       length of direct access i/o file no. 4
+c      150       length of direct access i/o file no. 5
+
+      integer         qsqln1, qsqln2, qsqln3, qsqln4, qsqln5, 
+     1                qwaln1, qwaln2, qwaln3, qwaln4, qwaln5
+
+      parameter     ( qsqln1 = 141,       qwaln1 = 146,   
+     1                qsqln2 = 142,       qwaln2 = 147,
+     2                qsqln3 = 143,       qwaln3 = 148,  
+     3                qsqln4 = 144,       qwaln4 = 149,
+     4                qsqln5 = 145,       qwaln5 = 150     )
+
+c      151       amount of i/o transfered on sequential i/o file 1 
+c      152       amount of i/o transfered on sequential i/o file 2
+c      153       amount of i/o transfered on sequential i/o file 3
+c      154       amount of i/o transfered on sequential i/o file 4
+c      155       amount of i/o transfered on sequential i/o file 5
+c      156       amount of i/o transfered on direct access i/o file 1
+c      157       amount of i/o transfered on direct access i/o file 2
+c      158       amount of i/o transfered on direct access i/o file 3
+c      159       amount of i/o transfered on direct access i/o file 4
+c      160       amount of i/o transfered on direct access i/o file 5
+
+      integer         qsqtr1, qsqtr2, qsqtr3, qsqtr4, qsqtr5, 
+     1                qwatr1, qwatr2, qwatr3, qwatr4, qwatr5
+
+      parameter     ( qsqtr1 = 151,       qwatr1 = 156,   
+     1                qsqtr2 = 152,       qwatr2 = 157,
+     2                qsqtr3 = 153,       qwatr3 = 158,  
+     3                qsqtr4 = 154,       qwatr4 = 159,
+     4                qsqtr5 = 155,       qwatr5 = 160     )
+
+c     cost statistics for lanczos
+c     -----------------------------
+
+c      161       total cost for eigenextraction
+c      162       accum. lanczos start up cost
+c      163       accum. lanczos recurrence cost
+c      164       accum. lanczos reorthogonalization cost
+c      165       accum. lanczos eigenanalysis cost during an
+c                iteration
+c      166       accum. lanczos eigenanalysis cost after an
+c                iteration
+c      167       total accum. factorization cost for lanczos
+c      168       total accum. lanczos cost
+
+      integer         qlntm0, qlntm1, qlntm2, qlntm3, qlntm4, 
+     1                qlntm5, qlntm6, qlntm7
+
+      parameter     ( qlntm0 = 161,       qlntm1 = 162,   
+     1                qlntm2 = 163,       qlntm3 = 164,
+     2                qlntm4 = 165,       qlntm5 = 166,  
+     3                qlntm6 = 167,       qlntm7 = 168     )
+
+c     lanczos reorthogonalization control and
+c     factorization panel pivot failure monitor flag
+c     ---------------------------------------------- 
+
+      integer         qfullr, qppfmn
+
+      parameter     ( qfullr = 169,       qppfmn = 170 )
+
+c     factorization and solve control parameters
+c     ------------------------------------------
+
+c      171       mincor  if nonzero, minimum core logic is activated
+c                        two digit number of the form ij
+c                        j = 0 means A matrix will be in memory
+c                        j = 1 means A matrix will be on disk without
+c                              row indices
+c                        j = 2 means A matrix will be on disk with
+c                              row indices (allows matrix multiplication)
+c                        i = 0 means B matrix will be in memory
+c                        i = 1 means B matrix will be on disk without
+c                              row indices
+c                        i = 2 means B matrix will be on disk with
+c                              row indices (allows matrix multiplication)
+c                        any nonzero forces minimum core processing for
+c                        factorization.
+c      172       pvttol  pivot tolerance used in factorization
+c      173       cmajor  control on whether factorization is performed
+c                        in column major or row major form
+c      174       fpnlsz  factorization panel size
+c      175       cndncm  flag on whether or not to compute the 
+c                        condition number
+c      176       savea   flag on whether or not to save the original
+c                        matrix
+c      177       extfil  parameter to control the amount of extra
+c                        fill allowed during a factorization
+c      178       zpcntl  zero pivot control
+c                        = 0  no controls
+c                        = 1  perturb zero pivots
+c      179, 180          reserved to hold zero pivot control monitoring
+c      181, 182          information.  only used if zpcntl = 1.
+c                        179 - number of such pivots
+c                        180 - first such pivot
+c                        181 - if zpcntl = 1 then min. perturbation
+c                        182 - if zpcntl = 1 then max. perturbation
+c      183       maxzer  supernode relaxation parameter
+
+      integer         qmncor, qpvttl, qcmajr, qfpnls, qcndnc,
+     1                qsavea, qextfl, qzpcnt, qmxzer, qfupds
+
+      parameter     ( qmncor = 171,       qpvttl = 172,   
+     1                qcmajr = 173,       qfpnls = 174,   
+     2                qcndnc = 175,       qsavea = 176,   
+     3                qextfl = 177,       qzpcnt = 178,
+     4                qmxzer = 183,       qfupds = 184 )  
+
+c     more temporary pointers
+c     -----------------------
+
+c      185       qtemp7
+c      186       qtemp8
+c      187       qtemp9
+c      188       qtemp0
+c      189       qtempa
+
+      integer         qtemp7, qtemp8, qtemp9, qtemp0, qtempa
+
+      parameter     ( qtemp7 = 185,   qtemp8 = 186,   qtemp9 = 187,
+     1                qtemp0 = 188,   qtempa = 189                  )
+
+c     negative pivot controls
+c     -----------------------
+
+c      190       npcntl  negative pivot control
+c                        = 0  no controls
+c                        = 1  monitor negative pivots
+c                        = 2  abort on negative pivots
+c      191, 192          reserved to hold neg. pivot control monitoring
+c      193, 194          information.  only used if npcntl = 1.
+c                        191 - number of such pivots
+c                        192 - first such pivot
+c                        193 - if npcntl = 1 then min. perturbation
+c                        194 - if npcntl = 1 then max. perturbation
+
+      integer         qnpcnt
+
+      parameter     ( qnpcnt = 190 )
+
+c     yet another solve control parameter
+c     -----------------------------------
+
+c      195       slvbks  max. number of right-hand-sides processed
+c                        at one time during a solve.
+
+      integer         qslvbs
+
+      parameter     ( qslvbs = 195                     )  
+
+c     one shift only Lanczos control parameter
+c     ----------------------------------------
+
+
+c      196       oneshf  only one shift without checking
+
+      integer         qonesh
+
+      parameter     ( qonesh = 196                     )
+
+c     additional lanczos statistics
+c     -----------------------------
+
+c      197       nfactr  number of factorizations
+c      198       nlstep  number of lanczos steps  
+c      199       nlsolv  number of block solves  
+c      200       nruns   number of lanczos runs  
+
+      integer         qfactr, qlstep, qlsolv, qruns
+
+      parameter     ( qfactr = 197,   qlstep = 198,   qlsolv = 199,
+     1                qruns  = 200                                  )
+
+c     SMP (OpenMP) control and timing information
+c     -------------------------------------------
+c      221       user specified number of cpus for SMP
+c                (default = min(4, max available)
+c      222       floating point operations to start SMP (default 1000000)
+c      223       cpu time for factorization elimination phase with SMP
+c      224       cpu time for numeric solution with SMP
+c      225       cpu time for factorization elimination phase
+c      226       cpu time for forward solve phase
+c      227       cpu time for backward solve phase
+c      228       cpu time for SMP forward solve phase
+c      229       cpu time for SMP backward solve phase
+
+      integer         qnmpcp, qsmpop, qsmplf, qsmpls, qfctel,
+     1                qfrwds, qbacks, qsmpfs, qsmpbs
+
+      parameter     ( qnmpcp = 221,   qsmpop = 222,   qsmplf = 223,
+     1                qsmpls = 224,   qfctel = 225,   qfrwds = 226,
+     2                qbacks = 227,   qsmpfs = 228,   qsmpbs = 229 )
+
+c     GPU additional pointers and control
+c     -----------------------------------
+c     230        GPU enablement switch
+c     231        cpu time for condition estimation phase
+c     232        wall clock time for condition estimation phase
+c     233        fpniog vector holding flag to indicate if panel
+c                is stored on disc, in the work array, or on 
+c                the GPU
+c     234        gpuwrk starting address where to store factor on GPU
+c     235        gpulen length of array allocated on GPU for factor
+c     236        gpunum the gpu device number to use
+c     237        gpufre 
+c     238        gpu threshold for when to assemble on GPU
+c     239        gpu threshold for when to do the elimination on 
+c                the GPU
+c     240        gpu threshold for when to do the update on the GPU
+
+      integer         qgpuon, qtmcnd, qwmcnd, qfpnig, qgpuwk, qgpuln,
+     1                qgpunm, qgpufr, qthsas, qthsel, qthsup
+
+      parameter     ( qgpuon = 230,   qtmcnd = 231,   qwmcnd = 232,
+     1                qfpnig = 233,   qgpuwk = 234,   qgpuln = 235,
+     2                qgpunm = 236,   qgpufr = 237,   qthsas = 238,
+     3                qthsel = 239,   qthsup = 240 )
+
+c     GPU/CPU additional performance control
+c     --------------------------------------
+c     241        big memory flag to indicate if the memory is large
+c                relative to the problem size.  This is to limit page
+c                thrashing for out of core problems
+c     242        panel size to be used in the solve step.  This will
+c                force panels to be stored as this size after the
+c                factorization has occurred.  Smaller panels for solve
+c                can improve performance with out of core problems.
+c                The solve panel size HAS to be less than the factor
+c                panel size
+c     243        mpanel, the maximum storage area used for a panel
+c                we reuse this when we have a small memory machine
+c                and we want to limit the size of the working array
+c                we use.
+c     244        the panel size to be used on the GPU when the
+c                frontal matrix is too large to be assembled
+c                entirley on the GPU and the factorization has to
+c                occur in panels with partial updates
+
+      integer         qbgmem, qspnls, qmpanl, qgupds
+
+      parameter     ( qbgmem = 241,   qspnls = 242,   qmpanl = 243,
+     1                qgupds = 244 )
+

@@ -1,0 +1,36 @@
+      DOUBLE PRECISION FUNCTION DAMAX(N,SX,INCX)
+C
+C     FINDS THE ELEMENT HAVING MAX. ABSOLUTE VALUE.
+C
+      DOUBLE PRECISION SX(*)
+      INTEGER I,INCX,INCXA,IX,N
+C
+      DAMAX = 0.0D0
+      IF( N .LT. 1 ) RETURN
+      DAMAX = ABS(SX(1))
+      IF(N.EQ.1)RETURN
+      IF(INCX.EQ.1)GO TO 20
+C
+C        CODE FOR INCREMENT NOT EQUAL TO 1
+C
+      IX = 1
+      INCXA = ABS ( INCX )
+      IX = IX + INCXA
+      DO 10 I = 2,N
+         IF(ABS(SX(IX)).GT.DAMAX) THEN
+            DAMAX = ABS(SX(IX))
+         ENDIF
+         IX = IX + INCXA
+   10 CONTINUE
+      RETURN
+C
+C        CODE FOR INCREMENT EQUAL TO 1
+C
+   20 CONTINUE
+      DO 30 I = 2,N
+         IF(ABS(SX(I)).GT.DAMAX) THEN
+            DAMAX = ABS(SX(I))
+         ENDIF
+   30 CONTINUE
+      RETURN
+      END

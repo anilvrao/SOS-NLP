@@ -1,0 +1,50 @@
+
+
+      SUBROUTINE CLKOUT(NCLOCK,VALCLK,INTVAL)
+C
+C ======================================================================
+C     CLKOUT===>clkout   J.T. BETTS
+C ======================================================================
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C       PURPOSE:  OUTPUT THE REAL AND INTEGER VALUES ACCUMULATED BY
+C                 PREVIOUS CALLS TO THE TIMING ROUTINES
+C                 THE CALL TO THIS ROUTINE MUST BE PRECEDED BY
+C                 (1) A CALL TO CLKBEG, AND
+C                 EITHER
+C                 (2A) A CALL TO CLKSET WITH NCLOCK < 0
+C                     AND A CALL TO CLKMAX
+C                 OR
+C                 (2B) A CALL TO CLKSET WITH NCLOCK > 0
+C                     AND A CALL TO CLKSUM
+C
+C       INPUT:
+C
+C         NCLOCK  NUMBER OF THE CLOCK TO BE OUTPUT
+C
+C                 NOTE IT IS ASSUMED THAT
+C                 0 < NCLOCK LEQ MAXCLK
+C                 THIS CONDITION IS NOT CHECKED!
+C
+C       OUTPUT:
+C
+C         VALCLK  THE REAL VALUE ACCUMULATED
+C         INTVAL  THE INTEGER VALUE ACCUMULATED
+C               >>IN ORDER TO REPRESENT LARGE INTEGER VALUES
+C               >>THE VARIABLE INTVAL IS TREATED AS DOUBLE PRECISION
+C         Note:   IF CLKBEG IS NOT CALLED BEFORE CLKMAX OR CLKSUM
+C                 VALCLK AND INTVAL WILL BE SET TO -NCLOCK
+C
+      PARAMETER (MAXCLK=40)
+C
+      DOUBLE PRECISION INTCLK,INTOLD
+      COMMON /CLKCOM/ CLKOLD(MAXCLK),CLKVAL(MAXCLK),INTCLK(MAXCLK),
+     $    INTOLD(MAXCLK),IERCLK(MAXCLK)
+      DOUBLE PRECISION INTVAL
+C
+      VALCLK = CLKVAL(NCLOCK)
+      INTVAL = INTCLK(NCLOCK)
+C
+      RETURN
+      END
