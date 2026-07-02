@@ -226,7 +226,7 @@ C
 C
       else
         print *,'invalid modeb = ',modeb
-        stop
+        RETURN
       ENDIF
 c
       full = .not.sumry

@@ -523,7 +523,7 @@ C
 C         INCORRECT VALUE FOR IVSTAT -- TERMINATE WITH ERROR 
 C
               WRITE(*,*) 'INCORRECT IVSTAT'
-              STOP
+              RETURN
 C
             ENDIF
 C
@@ -568,7 +568,7 @@ C
 C         INCORRECT VALUE FOR IVSTAT -- TERMINATE WITH ERROR 
 C
               WRITE(*,*) 'INCORRECT IVSTAT'
-              STOP
+              RETURN
 C
             ENDIF
 C
@@ -582,14 +582,14 @@ C         ALLOCATE SCRATCH ARRAYS
 C
             IF(MCON+NDIM.GT.LNRWKT) THEN
               PRINT *,'LNRWKT TOO SMALL'
-              STOP
+              RETURN
             ELSE
               LCABSL = LCRWKT
             ENDIF
 C
             IF(MCON+NDIM.GT.LNIWKT) THEN
               PRINT *,'LNIWKT TOO SMALL'
-              STOP
+              RETURN
             ELSE
               LCIDEL = LCIWKT
               LCIPRC = LCIDEL + MCON + NDIM
@@ -633,7 +633,7 @@ C
 C
             IF(IERSRT.NE.0) THEN
               PRINT *,'IERSRT =',IERSRT
-              STOP
+              RETURN
             ENDIF
 C
 C         PERMUTE IDELET ARRAY 

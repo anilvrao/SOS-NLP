@@ -243,7 +243,7 @@ c.debug
                   write(6,'("storage oops in xdslej")')
                   write(6,'("l1, l2, l3, length, bfrlen = ", 5i8)')
      1                        l1, l2, l3, length, bfrlen 
-                  stop
+                  RETURN
               end if
 c.debug
 

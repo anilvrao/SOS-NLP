@@ -123,7 +123,9 @@ C
         IRWRKB = IRQPSK + IRQPSL + IRSHRQ
       ELSE
         PRINT *,'INVALID KTOPTN =',KTOPTN
-        STOP
+        IWRKBD = -1
+        IRWRKB = -1
+        RETURN
       ENDIF
 C      
 C     ===================================================================

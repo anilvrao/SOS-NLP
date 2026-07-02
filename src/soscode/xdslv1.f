@@ -201,7 +201,8 @@ c.debug
 c.debug
           if ( inuse .gt. lwork ) then
               write(6,'("storage oops in xdslv1")')
-              stop
+              error = -401
+              return
           end if
 c.debug
          

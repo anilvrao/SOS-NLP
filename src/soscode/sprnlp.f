@@ -1350,6 +1350,23 @@ C
 c
 C ======================================================================
 c
+        if(allocated(cvec)) deallocate(cvec)
+        if(allocated(cold)) deallocate(cold)
+        if(allocated(pgrd)) deallocate(pgrd)
+        if(allocated(svec)) deallocate(svec)
+        if(allocated(xold)) deallocate(xold)
+        if(allocated(yvec)) deallocate(yvec)
+        if(allocated(ybar)) deallocate(ybar)
+        if(allocated(irwg)) deallocate(irwg)
+        if(allocated(jstr)) deallocate(jstr)
+        if(allocated(iprmg)) deallocate(iprmg)
+        if(allocated(iprmc)) deallocate(iprmc)
+        if(allocated(isto)) deallocate(isto)
+        if(allocated(irwr)) deallocate(irwr)
+        if(allocated(jsrr)) deallocate(jsrr)
+        if(allocated(iprmr)) deallocate(iprmr)
+        if(allocated(iscr)) deallocate(iscr)
+
         allocate(cvec(1:maxcon))
         allocate(cold(1:maxcon))
         allocate(pgrd(1:ndim))

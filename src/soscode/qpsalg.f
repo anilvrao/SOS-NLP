@@ -454,7 +454,7 @@ C
 C         INCORRECT VALUE FOR IVSTAT -- TERMINATE WITH ERROR 
 C
               WRITE(*,*) 'INCORRECT IVSTAT'
-              STOP
+              RETURN
 C
             ENDIF
 C
@@ -499,7 +499,7 @@ C
 C         INCORRECT VALUE FOR IVSTAT -- TERMINATE WITH ERROR 
 C
               WRITE(*,*) 'INCORRECT IVSTAT'
-              STOP
+              RETURN
 C
             ENDIF
 C

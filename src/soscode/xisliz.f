@@ -273,7 +273,8 @@ c         ------------------------------------------------------
 
 c.debug
               write(6,'("oops after 321 in xisliz")')
-              stop
+              error = -1
+              return
 c.debug
 
           end if

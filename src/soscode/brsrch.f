@@ -418,7 +418,7 @@ C
 C
       ELSE
         PRINT *,'KTOPTN =',KTOPTN
-        STOP
+        RETURN
       ENDIF
 C
       NUMFAC = NUMFAC + 1

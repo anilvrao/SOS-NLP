@@ -539,7 +539,7 @@ C
      $                 ' OF B MATRIX IS = ', NZROWB(I)
           WRITE(IPU,*) ' THE NONZERO COUNT MUST LE 2: RUN STOPPED!'
 C
-          STOP
+          RETURN
         ENDIF
       enddo
 C

@@ -215,7 +215,7 @@ C
 C
       ELSE
         PRINT *,'LNOPIN TOO BIG'
-        STOP
+        RETURN
       ENDIF
 C
       IF(SUMRY) THEN

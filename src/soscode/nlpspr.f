@@ -591,7 +591,7 @@ C
 C
           ELSE
             PRINT *,'EQCMIN ERROR RETURN--ITERM',ITERM
-            STOP
+            RETURN
           ENDIF
 C
 C           LOAD CURRENT BEST POINT INTO "SOLUTION"

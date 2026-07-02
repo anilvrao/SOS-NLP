@@ -35,7 +35,7 @@
 *
       WRITE (*,99999) SRNAME, INFO
 *
-      STOP
+      RETURN
 *
 99999 FORMAT ( ' ** ON ENTRY TO ', A6, ' PARAMETER NUMBER ', I2,
      $         ' HAD AN ILLEGAL VALUE' )

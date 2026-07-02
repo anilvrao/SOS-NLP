@@ -102,7 +102,7 @@ C
 C
       IF(LNTEMP.LT.MAX(MCON,NDIM)) THEN
         IER = -1101
-        STOP
+        RETURN
       ENDIF
 C
 C         COMPUTE THE GRADIENT AT XSTD

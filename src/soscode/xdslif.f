@@ -171,7 +171,7 @@ c.debug
               write(6,'("storage oops in xdslif")')
               write(6,'("ineqn1, acolls = ", 3i8)')
      1                    ineqn1, acolls 
-              stop
+              RETURN
           end if
 c.debug
 
@@ -272,7 +272,7 @@ c.debug
                   write(6,'("storage oops 2 in xdslif")')
                   write(6,'("colptr, ineqn1, acolls = ", 3i8)')
      1                        colptr, ineqn1, acolls 
-                  stop
+                  RETURN
               end if
 c.debug
 

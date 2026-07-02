@@ -203,7 +203,7 @@ C
         PMUBND = PMULWR
       ELSE
         PRINT *,'IRELAX IS WRONG'
-        STOP
+        RETURN
       ENDIF
 C
 C
@@ -292,7 +292,7 @@ C
       IF(IOFLAG.GE.10) THEN
         IF(FZMODE.EQV.OPMODE) THEN
           PRINT *,'FZMODE=OPMODE'
-          STOP
+          RETURN
         ELSEIF(FZMODE) THEN
           WRITE(IPUNLP,1055)
         ELSE
@@ -472,7 +472,7 @@ C
 C
       ELSEIF(IERLSM.NE.0) THEN
         PRINT *,'IERLSM =',IERLSM
-        STOP
+        RETURN
       ENDIF
 C
       RWORK(LCETAV:LCETAV+MSUBEM-1) = ETABAR(1:MSUBEM)
@@ -648,7 +648,7 @@ C
 C
         ELSE
           PRINT *,'SPRBAR ERROR RETURN--ITERM',ITERM
-          STOP
+          RETURN
         ENDIF
 C
       ENDIF

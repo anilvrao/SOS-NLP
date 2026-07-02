@@ -849,9 +849,7 @@ if(NOT FAST_BUILD)
 
   # Targets
   add_subdirectory(highs)
-  if(BUILD_CXX_EXE)
-    add_subdirectory(app)
-  endif()
+  add_subdirectory(app)
   if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(check)
@@ -873,11 +871,8 @@ else(FAST_BUILD)
 
   include(cpp-highs)
 
-  if(BUILD_CXX AND BUILD_CXX_EXE)
+  if(BUILD_CXX)
     add_subdirectory(app)
-  endif()
-
-  if(BUILD_CXX_EXAMPLE)
     add_subdirectory(examples)
   endif()
 

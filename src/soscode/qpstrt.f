@@ -244,7 +244,7 @@ C
      $        IPUSTF,.TRUE.,'QPSTRTQP.FIL')
           ENDIF
 C
-        STOP
+        RETURN
 C
       ENDIF
 C     

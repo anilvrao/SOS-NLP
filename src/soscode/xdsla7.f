@@ -115,7 +115,7 @@ c.debug
           write(6,'("in xdsla7 - oops after 100")')
           write(6,'("k     , space = ", 5i8)')
      1                k     , space
-          stop
+          RETURN
       end if
 c.debug
 c     write(6,'("after expanding for postponed columns")')

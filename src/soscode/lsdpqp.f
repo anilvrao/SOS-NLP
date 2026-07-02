@@ -230,7 +230,7 @@ C
      $        IPUFZF,.TRUE.,'SRCHFZQP.FIL')
           ENDIF
 C
-        STOP
+        RETURN
 C
       ENDIF
 C

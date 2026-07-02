@@ -274,7 +274,7 @@ c         ------------------------------------------------------------
 
 c.debug
               write(6,'("oops after 321 in xdslvz")')
-              stop
+              RETURN
 c.debug
 
           end if

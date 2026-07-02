@@ -799,8 +799,8 @@ C
       case(2)
         RELAX = .TRUE.
       case default
-        PRINT *,'BAD VALUE FOR IRELAX'
-        STOP
+        IERNLP = -156
+        GO TO 270
       end select
 C  
       IF(TOLKTC.LT.ONE) THEN
@@ -1285,6 +1285,38 @@ C             ALLOCATION BASED ON RELAXATION MODE
 C
 C ======================================================================
 c
+      if(allocated(alwi)) deallocate(alwi)
+      if(allocated(aupi)) deallocate(aupi)
+      if(allocated(bmat)) deallocate(bmat)
+      if(allocated(bvec)) deallocate(bvec)
+      if(allocated(cmat)) deallocate(cmat)
+      if(allocated(cvec)) deallocate(cvec)
+      if(allocated(etav)) deallocate(etav)
+      if(allocated(gvec)) deallocate(gvec)
+      if(allocated(rskr)) deallocate(rskr)
+      if(allocated(vlam)) deallocate(vlam)
+      if(allocated(wmat)) deallocate(wmat)
+      if(allocated(xlwi)) deallocate(xlwi)
+      if(allocated(xupi)) deallocate(xupi)
+      if(allocated(yvec)) deallocate(yvec)
+      if(allocated(ibnd)) deallocate(ibnd)
+      if(allocated(iprmc)) deallocate(iprmc)
+      if(allocated(iprmg)) deallocate(iprmg)
+      if(allocated(iprmh)) deallocate(iprmh)
+      if(allocated(iprmr)) deallocate(iprmr)
+      if(allocated(iprmx)) deallocate(iprmx)
+      if(allocated(irwb)) deallocate(irwb)
+      if(allocated(irwc)) deallocate(irwc)
+      if(allocated(irwh)) deallocate(irwh)
+      if(allocated(irwr)) deallocate(irwr)
+      if(allocated(irww)) deallocate(irww)
+      if(allocated(iskr)) deallocate(iskr)
+      if(allocated(jclb)) deallocate(jclb)
+      if(allocated(jclc)) deallocate(jclc)
+      if(allocated(jsrr)) deallocate(jsrr)
+      if(allocated(jsth)) deallocate(jsth)
+      if(allocated(jstw)) deallocate(jstw)
+
       allocate(alwi(1:maxcon))
       allocate(aupi(1:maxcon))
       allocate(bmat(1:nonzbr))

@@ -60,14 +60,14 @@ c         sort absolute value of inequality multipliers
 c
       call hdsrtn(vmlt,ineq,0,0,iprm,ierp)
       if(ierp.ne.0) then
-        stop
+        RETURN
       endif
 c
 c         reorder row indices to correspond
 c
       call hjprmx(imlt,ineq,iprm,ierp)
       if(ierp.ne.0) then
-        stop
+        RETURN
       endif
 c
 c         loop through the inequalities to reset multipliers

@@ -1,99 +1,112 @@
-# SOS NLP Solvers
+# SOS NLP HiGHS No-STOP MEX Build
 
-This repository contains the Fortran source code for the SOS nonlinear
-programming solvers:
+This repository contains the source needed to build the SOS nonlinear
+programming MEX gateway used by GPOPS-II with HiGHS as the QP backend.
 
-- `SPRNLP`: active-set SQP NLP solver
-- `BARNLP`: barrier NLP solver
+The SOS Fortran source in `src/soscode` has been modified so executable
+Fortran `STOP` statements are removed and solver exits can return through the
+MEX gateway instead of terminating MATLAB.
 
-The package is intended to be the standalone NLP-solver source package.  It
-includes only the NLP solver source code and the dependencies required to
-compile it.  It does not include MATLAB MEX files, GPOPS-II files, MATLAB
-wrappers, documentation, examples, drivers, or unrelated SOS distribution
-material.
-
-## What Is Included
+## Contents
 
 ```text
-src/soscode/          Fortran source closure for SPRNLP and BARNLP
-src/commons/          Common-block include files required by the solvers
-src/highs_bridge/     C bridge from the legacy QPOPT-compatible call to HiGHS
-third_party/HiGHS/    HiGHS source code
-Makefile              Convenience build for a static SOS NLP library
-LICENSE               MIT license for the SOS NLP package
-PERMISSION            Permission statement for release of the SOS NLP source
-THIRD_PARTY_NOTICES.txt
-                      HiGHS MIT license notice
+Makefile                         SOS static archive build
+src/commons/                     SOS common-block include files
+src/soscode/                     no-STOP SOS Fortran source
+src/highs_bridge/                SOS-to-HiGHS bridge
+src/fortran/sos_mex_io.f         Fortran MEX I/O helper
+src/mex/sos_nlp_mex_clean.cpp    MATLAB MEX gateway
+matlab/                          MATLAB build wrappers
+tools/                           platform build scripts
+third_party/HiGHS/               HiGHS source
+docs/sosdoc.2025.02.pdf          SOS user's guide
 ```
 
-## What Is Excluded
+Generated files are intentionally not tracked.  Builds create output under
+`build/` and install HiGHS under `third_party/highs-install-*`.
 
-This package deliberately excludes:
+## Verify No STOP Statements
 
-- MATLAB interface files and MEX build files
-- GPOPS-II files
-- SOS delay-equation source files
-- examples and drivers
-- SOS documentation and non-build distribution material
-- compiled objects, libraries, and generated build artifacts
-- original QPOPT/Optimates core files `lpcore.f`, `qpcore.f`, and `qpopt.f`
-
-The QP solve used by the SOS NLP routines is provided through the
-HiGHS-backed compatibility layer in `src/soscode/qpopt_highs.f` and
-`src/highs_bridge/sos_highs_qp.c`.
-
-## Build
-
-The default build uses `gfortran`, `cc`, `cmake`, and a C++ compiler.  It first
-builds and installs HiGHS locally under `third_party/highs-install`, then builds
-the SOS NLP static archive:
+Run this from the repository root:
 
 ```sh
-make
+rg -n '^[[:space:]]*[sS][tT][oO][pP]([[:space:]]|$|[0-9])' src/soscode
 ```
 
-The output archive is:
+The command should produce no matches.
+
+## macOS Build
+
+See `SOURCE_BUILD.md`.
+
+Build identifiers:
 
 ```text
-build/libsos_nlp.a
+gfortran_mac wrapper: matlab/build_sos_nlp_mex_gfortran_mac.m
+nag_mac wrapper:      matlab/build_sos_nlp_mex_nag_mac.m
+gfortran_mac output:  build/mex/gfortran_mac/<mexext>/sos_nlp_mex.<mexext>
+nag_mac output:       build/mex/nag_mac/<mexext>/sos_nlp_mex.<mexext>
 ```
 
-To use a different Fortran compiler:
+The main macOS MATLAB wrapper is:
+
+```matlab
+addpath('matlab')
+mexPath = build_sos_nlp_mex_gfortran_mac()
+```
+
+There is also a NAG wrapper:
+
+```matlab
+addpath('matlab')
+mexPath = build_sos_nlp_mex_nag_mac()
+```
+
+## Windows MSYS/MINGW Build
+
+See `PC_MSYS_MINGW_BUILD.md`.
+
+Build identifiers:
+
+```text
+mingw_windows MATLAB wrapper: matlab/build_sos_nlp_mex_mingw_windows.m
+mingw_windows MSYS script:    tools/build_sos_nlp_mex_mingw_windows.sh
+mingw_windows output:         build/mex/mingw_windows/mexw64/sos_nlp_mex.mexw64
+```
+
+From MATLAB on Windows:
+
+```matlab
+cd('C:\path\to\sos_nlp_highs_no_stop')
+addpath('matlab')
+mexPath = build_sos_nlp_mex_mingw_windows()
+```
+
+From an MSYS2 shell:
 
 ```sh
-make clean
-make FC=/path/to/compiler
+cd /c/path/to/sos_nlp_highs_no_stop
+bash tools/build_sos_nlp_mex_mingw_windows.sh
 ```
 
-For the NAG Fortran compiler:
+## MATLAB Usage After Build
 
-```sh
-make clean
-make FC=nagfor FFLAGS="-O2 -dusty"
+Add the generated MEX directory to the MATLAB path:
+
+```matlab
+addpath(fullfile(pwd,'build','mex','gfortran_mac',mexext),'-begin')
+which sos_nlp_mex
+info = sos_nlp_mex('info')
 ```
 
-For a custom wrapper such as `unagfor`:
+Expected `info.fortranCompiler` text identifies the compiler/toolchain and
+source-built HiGHS.
 
-```sh
-make clean
-make FC=/usr/local/bin/unagfor FFLAGS="-O2 -dusty"
-```
+## Notes
 
-To remove both SOS and HiGHS build products:
-
-```sh
-make distclean
-```
-
-## Linking
-
-Applications should link their Fortran driver against `build/libsos_nlp.a` and
-the HiGHS library built under `third_party/highs-install`.  Because HiGHS is a
-C++ library, final executables may also need the C++ runtime library for the
-platform/compiler being used.
-
-## License
-
-The SOS NLP package is distributed under the MIT License.  HiGHS is also
-distributed under the MIT License; see `THIRD_PARTY_NOTICES.txt` and
-`third_party/HiGHS/LICENSE.txt`.
+- `qpopt.f`, `qpcore.f`, and `lpcore.f` are excluded from the SOS archive.
+- `qpopt_highs.f` and `src/highs_bridge/sos_highs_qp.c` provide the HiGHS QP
+  path.
+- On macOS, interrupting a running SOS MEX with CTRL-C may leave MATLAB's MEX
+  runtime in a non-reusable state.  Restart MATLAB before another SOS run if
+  this occurs.

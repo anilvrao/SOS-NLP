@@ -105,7 +105,8 @@ c.debug
       if ( k .ne. 1 .or. space .ne. 0 ) then
           write(6,'("in xdslb7 - oops after 100")')
           write(6,'("k, space = ", 2i8)') k, space
-          stop
+          ierr = -1
+          return
       end if
  
 c  =====================================================================

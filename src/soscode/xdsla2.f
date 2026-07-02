@@ -126,7 +126,7 @@ c.debug
       if ( kcur .ne. 1 .or. kfnl .ne. 1 ) then
           write(6,'("oops at end of xdsla2 - kcur, kfnl = ", 2i8)')
      1                                        kcur, kfnl
-          stop
+          RETURN
       end if
 c.debug
  

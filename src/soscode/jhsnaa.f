@@ -26,7 +26,7 @@ C
           WRITE(IPU,*) ' JHSNAA: NO BARKT ERROR MAP FOR MULTI-FRONTAL',
      $                 ' ERROR NUMBER =', IERMF, ' RUN STOPPED!'
 C
-          STOP
+          RETURN
         ENDIF
 C
       enddo loop

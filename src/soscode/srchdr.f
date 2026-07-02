@@ -529,7 +529,7 @@ C
      4      IPUDRF,.TRUE.,'SRCHDRQP.FIL')
           ENDIF
 C
-          STOP
+          RETURN
 C
         ENDIF
 C

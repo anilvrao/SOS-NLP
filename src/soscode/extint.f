@@ -354,7 +354,7 @@ C
         enddo
 C
       ELSE
-        STOP
+        RETURN
       ENDIF
 C
       RETURN
