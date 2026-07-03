@@ -1,7 +1,7 @@
 # SOS NLP HiGHS MEX Build
 
 This repository contains the source needed to build the SOS nonlinear
-programming MEX gateway used by GPOPS-II with HiGHS as the QP backend.
+programming MEX gateway with HiGHS as the QP backend.
 
 The SOS Fortran source in `src/soscode` has been modified so executable
 Fortran `STOP` statements are removed and solver exits can return through the

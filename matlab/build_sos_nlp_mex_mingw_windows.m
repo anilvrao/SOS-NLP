@@ -2,7 +2,7 @@ function mexPath = build_sos_nlp_mex_mingw_windows()
 %BUILD_SOS_NLP_MEX_MINGW_WINDOWS Build SOS MEX with MSYS2/MINGW on Windows.
 %
 % This wrapper invokes the MSYS2/MINGW source build script.  The generated
-% MEX has the standard GPOPS-II SOS gateway name, sos_nlp_mex.mexw64.
+% MEX has the standard SOS gateway name, sos_nlp_mex.mexw64.
 
 root = fileparts(fileparts(mfilename("fullpath")));
 bash = "C:\msys64\usr\bin\bash.exe";

@@ -16,7 +16,8 @@ Build notes:
 - `qpopt.f`, `qpcore.f`, and `lpcore.f` are excluded from the archive.
 - `qpopt_highs.f` and `src/highs_bridge/sos_highs_qp.c` are included.
 
-For inclusion in GPOPS-II on Windows, copy the generated MEX to:
+For downstream use on Windows, copy the generated MEX to the appropriate
+application-specific solver directory, for example:
 
 ```text
 nlp/sos/sos_nlp_mex.mexw64

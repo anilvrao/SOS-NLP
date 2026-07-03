@@ -14,7 +14,7 @@ permission from John T. Betts.  See `PERMISSION` and `LICENSE`.
 ## MATLAB Interface And Build Support
 
 The MATLAB MEX interface, MATLAB build wrappers, platform build scripts, and
-GPOPS-II-oriented SOS/HiGHS integration support were written by Anil V. Rao.
+SOS/HiGHS integration support were written by Anil V. Rao.
 This includes:
 
 ```text
