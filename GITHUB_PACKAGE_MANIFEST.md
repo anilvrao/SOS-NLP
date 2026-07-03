@@ -9,6 +9,7 @@ installed HiGHS libraries, and MEX binaries were intentionally excluded.
 Important included source:
 
 ```text
+ATTRIBUTION.md
 src/soscode
 src/commons
 src/highs_bridge

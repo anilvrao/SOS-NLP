@@ -7,9 +7,19 @@ The SOS Fortran source in `src/soscode` has been modified so executable
 Fortran `STOP` statements are removed and solver exits can return through the
 MEX gateway instead of terminating MATLAB.
 
+## Attribution
+
+The SOS solver source code was written by John T. Betts.  The MATLAB MEX
+interface, MATLAB build wrappers, platform build scripts, and SOS/HiGHS
+integration support were written by Anil V. Rao.
+
+See `ATTRIBUTION.md`, `PERMISSION`, `LICENSE`, and
+`THIRD_PARTY_NOTICES.txt` for additional attribution and licensing details.
+
 ## Contents
 
 ```text
+ATTRIBUTION.md                   Authorship and attribution notes
 Makefile                         SOS static archive build
 src/commons/                     SOS common-block include files
 src/soscode/                     no-STOP SOS Fortran source
