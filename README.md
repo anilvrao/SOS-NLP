@@ -1,4 +1,4 @@
-# SOS NLP HiGHS No-STOP MEX Build
+# SOS NLP HiGHS MEX Build
 
 This repository contains the source needed to build the SOS nonlinear
 programming MEX gateway used by GPOPS-II with HiGHS as the QP backend.
