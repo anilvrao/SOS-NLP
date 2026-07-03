@@ -14,7 +14,8 @@ interface, MATLAB build wrappers, platform build scripts, and SOS/HiGHS
 integration support were written by Anil V. Rao.
 
 See `ATTRIBUTION.md`, `PERMISSION`, `LICENSE`, and
-`THIRD_PARTY_NOTICES.txt` for additional attribution and licensing details.
+`THIRD_PARTY_NOTICES.txt` for additional attribution, permission, and
+licensing details.
 
 ## Contents
 
