@@ -21,7 +21,11 @@ licensing details.
 
 ```text
 ATTRIBUTION.md                   Authorship and attribution notes
+MANIFEST.md                      Repository manifest
 Makefile                         SOS static archive build
+MAC_GFORTRAN_BUILD.md            macOS gfortran build notes
+PC_MSYS_MINGW_BUILD.md           Windows MSYS2/MinGW build notes
+SOURCE_BUILD.md                  General source build notes
 src/commons/                     SOS common-block include files
 src/soscode/                     no-STOP SOS Fortran source
 src/highs_bridge/                SOS-to-HiGHS bridge
@@ -48,7 +52,7 @@ The command should produce no matches.
 
 ## macOS Build
 
-See `SOURCE_BUILD.md`.
+See `MAC_GFORTRAN_BUILD.md`.
 
 Build identifiers:
 
