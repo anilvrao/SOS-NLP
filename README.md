@@ -26,6 +26,7 @@ Makefile                         SOS static archive build
 MAC_GFORTRAN_BUILD.md            macOS gfortran build notes
 PC_MSYS_MINGW_BUILD.md           Windows MSYS2/MinGW build notes
 SOURCE_BUILD.md                  General source build notes
+R7_MEX_PROVENANCE.md             GPOPS-II R7 SOS MEX fingerprint
 src/commons/                     SOS common-block include files
 src/soscode/                     no-STOP SOS Fortran source
 src/highs_bridge/                SOS-to-HiGHS bridge
