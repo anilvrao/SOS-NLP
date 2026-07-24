@@ -26,7 +26,6 @@ Makefile                         SOS static archive build
 MAC_GFORTRAN_BUILD.md            macOS gfortran build notes
 PC_MSYS_MINGW_BUILD.md           Windows MSYS2/MinGW build notes
 SOURCE_BUILD.md                  General source build notes
-R7_MEX_PROVENANCE.md             GPOPS-II R7 SOS MEX fingerprint
 src/commons/                     SOS common-block include files
 src/soscode/                     no-STOP SOS Fortran source
 src/highs_bridge/                SOS-to-HiGHS bridge
@@ -123,6 +122,8 @@ source-built HiGHS.
 - `qpopt.f`, `qpcore.f`, and `lpcore.f` are excluded from the SOS archive.
 - `qpopt_highs.f` and `src/highs_bridge/sos_highs_qp.c` provide the HiGHS QP
   path.
-- On macOS, interrupting a running SOS MEX with CTRL-C may leave MATLAB's MEX
-  runtime in a non-reusable state.  Restart MATLAB before another SOS run if
-  this occurs.
+- The SOS source clears saved solver work arrays at the start of a new run so
+  an abandoned reverse-communication sequence does not reuse stale allocated
+  state.  A hard MATLAB CTRL-C interrupt can still stop native code at an
+  arbitrary point; if MATLAB behaves unpredictably after such an interrupt,
+  restart MATLAB before another SOS MEX solve.

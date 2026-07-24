@@ -130,5 +130,8 @@ The command should produce no matches.
   path.
 - Generated files under `build/` and `third_party/highs-install-*` should not
   be committed.
-- If MATLAB is interrupted with CTRL-C during a long MEX call, restart MATLAB
-  before running another SOS MEX solve.
+- The SOS source clears saved solver work arrays at the start of a new run so
+  an abandoned reverse-communication sequence does not reuse stale allocated
+  state.  A hard MATLAB CTRL-C interrupt can still stop native code at an
+  arbitrary point; if MATLAB behaves unpredictably after such an interrupt,
+  restart MATLAB before another SOS MEX solve.
