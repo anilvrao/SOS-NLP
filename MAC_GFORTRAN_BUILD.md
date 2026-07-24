@@ -43,7 +43,7 @@ From the repository root:
   -S third_party/HiGHS \
   -B build/highs-build-gfortran-mac \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_INSTALL_PREFIX=third_party/highs-install-gfortran-mac \
+  -DCMAKE_INSTALL_PREFIX=third_party/highs-install-source-mac \
   -DBUILD_SHARED_LIBS=OFF \
   -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
   -DBUILD_CXX=ON \
@@ -72,7 +72,7 @@ Then build and install HiGHS:
 ```sh
 make \
   FC=/opt/homebrew/bin/gfortran \
-  HIGHS_PREFIX=third_party/highs-install-gfortran-mac \
+  HIGHS_PREFIX=third_party/highs-install-source-mac \
   OBJ_DIR=build/obj_gfortran_mac \
   LIB=build/libsos_nlp_gfortran_mac.a \
   FFLAGS='-O2 -std=legacy -fallow-argument-mismatch -mmacosx-version-min=12.0 -fPIC' \
